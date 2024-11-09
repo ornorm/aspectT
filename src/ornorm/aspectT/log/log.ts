@@ -9,8 +9,8 @@
  * @date 2023
  */
 
-import { LEVEL, MESSAGE, SPLAT } from 'triple-beam';
-import { createLogger, format, Logger, transports } from 'winston';
+import {LEVEL, MESSAGE, SPLAT} from 'triple-beam';
+import {createLogger, format, Logger, transports} from 'winston';
 
 /**
  * Interface representing the structure of log data.
@@ -36,6 +36,7 @@ export interface LogData {
      * Additional metadata for the log message.
      */
     [SPLAT]?: any;
+
     /**
      * Additional properties for the log data.
      */
@@ -60,6 +61,10 @@ export type LogLevel = 'debug' | 'info' | 'verbose' | 'warn' | 'error';
 
 /**
  * Manages logging for the entire module.
+ *
+ * This is the default system logging facilities.
+ *
+ * This is provided as a convenience for logging within the module.
  */
 export class Log {
     private static readonly EXTENDED_LOGGING_DURATION_MILLIS: number = 60000 * 30; // 30 minutes
@@ -82,7 +87,7 @@ export class Log {
             format.colorize(),
             format.timestamp(),
             format.printf((data: LogData) => {
-                const { timestamp, level, message }: LogData = data;
+                const {timestamp, level, message}: LogData = data;
                 return `${timestamp} [${level}]: ${message}`;
             })
         ),
@@ -150,6 +155,18 @@ export class Log {
 
     public static set tag(tag: string) {
         Log.TAG = tag;
+    }
+
+    /**
+     * Get the transport for the logger.
+     */
+    public static get transports(): transports.StreamTransportInstance {
+        return Log.logger.transports[0] as transports.StreamTransportInstance;
+    }
+
+    public static set transports(newTransports: transports.StreamTransportInstance) {
+        Log.logger.clear();
+        Log.logger.add(newTransports);
     }
 
     /**
@@ -271,8 +288,9 @@ export class Log {
      * @param format The format string for the log message.
      * @param level The log level (default is 'info').
      * @param args The arguments for the format string.
+     * @see LogLevel
      */
-    public static l(prefix: string, format?: string, level: string = 'info', ...args: Array<any>): void {
+    public static l(prefix: string, format?: string, level: LogLevel = 'info', ...args: Array<any>): void {
         switch (level.toLowerCase()) {
             case 'debug':
                 Log.d(prefix, format, ...args);
@@ -291,6 +309,27 @@ export class Log {
                 Log.i(prefix, format, ...args);
                 break;
         }
+    }
+
+    /**
+     * Clears all transports from the logger.
+     */
+    public static clear(): void {
+        Log.logger.clear();
+    }
+
+    /**
+     * Flushes the event cache by logging all cached messages at the
+     * current log level.
+     *
+     * After logging, the event cache is cleared.
+     */
+    public static flush(): void {
+        const currentLevel: LogLevel = Log.logger.level as LogLevel;
+        for (const message of Log.eventCache) {
+            Log.logger.log(currentLevel, message);
+        }
+        Log.eventCache = [];
     }
 
     /**
