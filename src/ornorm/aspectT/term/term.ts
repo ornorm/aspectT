@@ -2,34 +2,23 @@ import {TransformableInfo} from 'logform';
 import {join} from 'path';
 import {LEVEL, MESSAGE, SPLAT} from 'triple-beam';
 import {createLogger, format, Logger, transports} from 'winston';
+import {readFileSync} from 'fs';
+
+// Load package.json to get author and version
+const packageJson = JSON.parse(
+    readFileSync(join(__dirname, '../../../../../package.json'), 'utf8')
+);
+const { version, author } = packageJson;
 
 /**
  * Interface representing the structure of log data.
  */
 export interface LogData {
-    /**
-     * The level of the log (e.g., 'info', 'error').
-     */
     level: string;
-    /**
-     * The message to be logged.
-     */
     message: any;
-    /**
-     * Optional log level from the 'triple-beam' library.
-     */
     [LEVEL]?: string;
-    /**
-     * Optional log message from the 'triple-beam' library.
-     */
     [MESSAGE]?: any;
-    /**
-     * Optional additional metadata from the 'triple-beam' library.
-     */
     [SPLAT]?: any;
-    /**
-     * Optional additional properties.
-     */
     [key: string | symbol]: any;
 }
 
@@ -53,8 +42,8 @@ export const ASPECT_T_BANNER_HEADER: string = `
 ============== AspectT CLI ===============
 ==========================================
 Project: AspectT
-Version: 1.0.0
-Author: ornorm
+Version: ${version}
+Author: ${author}
 Date: ${new Date().toISOString().split('T')[0]}
 ==========================================
 `;
