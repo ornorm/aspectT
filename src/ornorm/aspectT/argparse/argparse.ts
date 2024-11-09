@@ -1,17 +1,4 @@
 import { argparse, argparse_option, argparse_option_type, argparse_option_flags, argparse_flag } from '@ornorm/argparse';
-import winston from 'winston';
-
-const logger: winston.Logger = winston.createLogger({
-    level: 'info',
-    format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.timestamp(),
-        winston.format.printf(({ timestamp, level, message }) => `${timestamp} ${level}: ${message}`)
-    ),
-    transports: [
-        new winston.transports.Console()
-    ]
-});
 
 const OPT_UNSET: number = 1;
 const OPT_LONG: number = 1 << 1;
