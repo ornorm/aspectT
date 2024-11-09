@@ -34,11 +34,6 @@ export class Log {
     private static readonly NUM_DIALABLE_DIGITS_TO_LOG: number = 0;
 
     private static TAG: string = 'AspectT';
-    private static DEBUG: boolean = Log.isLoggable('debug');
-    private static INFO: boolean = Log.isLoggable('info');
-    private static VERBOSE: boolean = Log.isLoggable('verbose');
-    private static WARN: boolean = Log.isLoggable('warn');
-    private static ERROR: boolean = Log.isLoggable('error');
 
     private static FORCE_LOGGING: boolean = false;
     private static sIsUserExtendedLoggingEnabled: boolean = false;
@@ -61,6 +56,61 @@ export class Log {
     private static eventCache: Array<string> = [];
 
     private constructor() {}
+    /**
+     * Gets whether debug logging is enabled.
+     * @returns True if debug logging is enabled, false otherwise.
+     */
+    public static get DEBUG(): boolean {
+        return Log.isLoggable('debug');
+    }
+
+    /**
+     * Gets whether info logging is enabled.
+     * @returns True if info logging is enabled, false otherwise.
+     */
+    public static get INFO(): boolean {
+        return Log.isLoggable('info');
+    }
+
+    /**
+     * Gets whether verbose logging is enabled.
+     * @returns True if verbose logging is enabled, false otherwise.
+     */
+    public static get VERBOSE(): boolean {
+        return Log.isLoggable('verbose');
+    }
+
+    /**
+     * Gets whether warn logging is enabled.
+     * @returns True if warn logging is enabled, false otherwise.
+     */
+    public static get WARN(): boolean {
+        return Log.isLoggable('warn');
+    }
+
+    /**
+     * Gets whether error logging is enabled.
+     * @returns True if error logging is enabled, false otherwise.
+     */
+    public static get ERROR(): boolean {
+        return Log.isLoggable('error');
+    }
+
+    /**
+     * Gets the current log level.
+     * @returns The current log level.
+     */
+    public static get level(): string {
+        return Log.logger.level;
+    }
+
+    /**
+     * Sets the log level.
+     * @param level The new log level.
+     */
+    public static set level(level: string) {
+        Log.logger.level = level;
+    }
 
     /**
      * Checks if unit testing is enabled.
@@ -100,12 +150,11 @@ export class Log {
     }
 
     /**
-     * Logs a debug message.
+     * Logs a `debug` message.
      * @param prefix The prefix for the log message.
      * @param format The format string for the log message.
      * @param args The arguments for the format string.
      */
-    public static d(prefix: string, format: string, ...args: Array<any>): void;
     public static d(prefix: string, format: string): void;
     public static d(prefix: string, format: string, ...args: Array<any>): void {
         if (Log.sIsUserExtendedLoggingEnabled) {
@@ -119,12 +168,11 @@ export class Log {
     }
 
     /**
-     * Logs an info message.
+     * Logs an `info` message.
      * @param prefix The prefix for the log message.
      * @param format The format string for the log message.
      * @param args The arguments for the format string.
      */
-    public static i(prefix: string, format: string, ...args: Array<any>): void;
     public static i(prefix: string, format: string): void;
     public static i(prefix: string, format: string, ...args: Array<any>): void {
         if (Log.INFO) {
@@ -133,7 +181,7 @@ export class Log {
     }
 
     /**
-     * Logs a verbose message.
+     * Logs a `verbose` message.
      * @param prefix The prefix for the log message.
      * @param format The format string for the log message.
      * @param args The arguments for the format string.
@@ -152,12 +200,11 @@ export class Log {
     }
 
     /**
-     * Logs a warning message.
+     * Logs a `warning` message.
      * @param prefix The prefix for the log message.
      * @param format The format string for the log message.
      * @param args The arguments for the format string.
      */
-    public static w(prefix: string, format: string, ...args: Array<any>): void;
     public static w(prefix: string, format: string): void;
     public static w(prefix: string, format: string, ...args: Array<any>): void {
         if (Log.WARN) {
@@ -166,7 +213,7 @@ export class Log {
     }
 
     /**
-     * Logs an error message.
+     * Logs an `error` message.
      * @param prefix The prefix for the log message.
      * @param format The format string for the log message.
      * @param error The error object.
@@ -180,15 +227,14 @@ export class Log {
     }
 
     /**
-     * Logs a critical error message.
+     * Logs a critical `panic` error message.
      * @param prefix The prefix for the log message.
      * @param error The error object.
      * @param format The format string for the log message.
      * @param args The arguments for the format string.
      */
-    public static wtf(prefix: string, error: Error, format: string, ...args: Array<any>): void;
-    public static wtf(prefix: string, error: Error, format: string): void;
-    public static wtf(prefix: string, error: Error, format: string, ...args: Array<any>): void {
+    public static p(prefix: string, error: Error, format: string): void;
+    public static p(prefix: string, error: Error, format: string, ...args: Array<any>): void {
         Log.logger.error(Log.buildMessage(prefix, format, args), error);
     }
 
@@ -198,11 +244,6 @@ export class Log {
      */
     public static setTag(tag: string): void {
         Log.TAG = tag;
-        Log.DEBUG = Log.isLoggable('debug');
-        Log.INFO = Log.isLoggable('info');
-        Log.VERBOSE = Log.isLoggable('verbose');
-        Log.WARN = Log.isLoggable('warn');
-        Log.ERROR = Log.isLoggable('error');
     }
 
     /**
