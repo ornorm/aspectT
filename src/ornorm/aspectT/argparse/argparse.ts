@@ -435,13 +435,6 @@ function argparse_help_cb(self: argparse, option: argparse_option): void {
 }
 
 export {
-    prefix_skip,
-    prefix_cmp,
-    argparse_error,
-    argparse_getvalue,
-    argparse_options_check,
-    argparse_short_opt,
-    argparse_long_opt,
     argparse_init,
     argparse_describe,
     argparse_parse,
