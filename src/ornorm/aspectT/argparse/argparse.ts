@@ -1,4 +1,20 @@
 import { argparse, argparse_option, argparse_option_type, argparse_option_flags, argparse_flag } from '@ornorm/argparse';
+import winston from 'winston';
+
+const logger: winston.Logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.timestamp(),
+        winston.format.printf(({ timestamp, level, message }) => `${timestamp} ${level}: ${message}`)
+    ),
+    transports: [
+        new winston.transports.Console()
+    ]
+});
+
+const OPT_UNSET: number = 1;
+const OPT_LONG: number = 1 << 1;
 
 function prefix_skip(str: string, prefix: string): string | null {
     const len: number = prefix.length;
@@ -15,10 +31,10 @@ function prefix_cmp(str: string, prefix: string): number {
 }
 
 function argparse_error(self: argparse, opt: argparse_option, reason: string, flags: number): void {
-    if (flags & argparse_option_flags.OPT_LONG) {
-        console.error(`error: option \`--${opt.long_name}\` ${reason}`);
+    if (flags & OPT_LONG) {
+        logger.error(`Option \`--${opt.long_name}\` ${reason}`);
     } else {
-        console.error(`error: option \`-${opt.short_name}\` ${reason}`);
+        logger.error(`Option \`-${opt.short_name}\` ${reason}`);
     }
     process.exit(1);
 }
@@ -29,7 +45,7 @@ function argparse_getvalue(self: argparse, opt: argparse_option, flags: number):
 
     switch (opt.type) {
         case argparse_option_type.ARGPARSE_OPT_BOOLEAN:
-            if (flags & argparse_option_flags.OPT_UNSET) {
+            if (flags & OPT_UNSET) {
                 opt.value--;
             } else {
                 opt.value++;
@@ -37,7 +53,7 @@ function argparse_getvalue(self: argparse, opt: argparse_option, flags: number):
             if (opt.value < 0) opt.value = 0;
             break;
         case argparse_option_type.ARGPARSE_OPT_BIT:
-            if (flags & argparse_option_flags.OPT_UNSET) {
+            if (flags & OPT_UNSET) {
                 opt.value &= ~opt.data;
             } else {
                 opt.value |= opt.data;
@@ -55,7 +71,6 @@ function argparse_getvalue(self: argparse, opt: argparse_option, flags: number):
             }
             break;
         case argparse_option_type.ARGPARSE_OPT_INTEGER:
-            let errno: number = 0;
             if (self.optvalue) {
                 opt.value = parseInt(self.optvalue, 10);
                 self.optvalue = null;
@@ -65,7 +80,7 @@ function argparse_getvalue(self: argparse, opt: argparse_option, flags: number):
             } else {
                 argparse_error(self, opt, "requires a value", flags);
             }
-            if (errno === ERANGE) {
+            if (opt.value === Number.POSITIVE_INFINITY || opt.value === Number.NEGATIVE_INFINITY) {
                 argparse_error(self, opt, "numerical result out of range", flags);
             }
             if (isNaN(opt.value)) {
@@ -73,7 +88,6 @@ function argparse_getvalue(self: argparse, opt: argparse_option, flags: number):
             }
             break;
         case argparse_option_type.ARGPARSE_OPT_FLOAT:
-            errno = 0;
             if (self.optvalue) {
                 opt.value = parseFloat(self.optvalue);
                 self.optvalue = null;
@@ -83,7 +97,7 @@ function argparse_getvalue(self: argparse, opt: argparse_option, flags: number):
             } else {
                 argparse_error(self, opt, "requires a value", flags);
             }
-            if (errno === ERANGE) {
+            if (opt.value === Number.POSITIVE_INFINITY || opt.value === Number.NEGATIVE_INFINITY) {
                 argparse_error(self, opt, "numerical result out of range", flags);
             }
             if (isNaN(opt.value)) {
@@ -140,14 +154,14 @@ function argparse_long_opt(self: argparse, options: argparse_option[]): number {
             if (!prefix_cmp(self.argv[0].slice(2), "no-")) continue;
             rest = prefix_skip(self.argv[0].slice(5), option.long_name);
             if (!rest) continue;
-            option.flags |= argparse_option_flags.OPT_UNSET;
+            option.flags |= OPT_UNSET;
         }
 
         if (rest[0] === '=') {
             self.optvalue = rest.slice(1);
         }
 
-        return argparse_getvalue(self, option, option.flags | argparse_option_flags.OPT_LONG);
+        return argparse_getvalue(self, option, option.flags | OPT_LONG);
     }
     return -2;
 }
@@ -192,7 +206,7 @@ function argparse_parse(self: argparse, argc: number, argv: string[]): number {
             while (self.optvalue) {
                 const result: number = argparse_short_opt(self, self.options);
                 if (result === -2) {
-                    console.error(`error: unknown option \`${arg}\``);
+                    logger.error(`Unknown option \`${arg}\``);
                     argparse_usage(self);
                     if (!(self.flags & argparse_flag.ARGPARSE_IGNORE_UNKNOWN_ARGS)) {
                         process.exit(1);
@@ -210,7 +224,7 @@ function argparse_parse(self: argparse, argc: number, argv: string[]): number {
 
         const result: number = argparse_long_opt(self, self.options);
         if (result === -2) {
-            console.error(`error: unknown option \`${arg}\``);
+            logger.error(`Unknown option \`${arg}\``);
             argparse_usage(self);
             if (!(self.flags & argparse_flag.ARGPARSE_IGNORE_UNKNOWN_ARGS)) {
                 process.exit(1);
@@ -228,13 +242,13 @@ function argparse_parse(self: argparse, argc: number, argv: string[]): number {
 
 function argparse_usage(self: argparse): void {
     if (self.usages.length) {
-        console.log(`Usage: ${self.usages.join('\n   or: ')}`);
+        logger.info(`Usage: ${self.usages.join('\n   or: ')}`);
     } else {
-        console.log('Usage:');
+        logger.info('Usage:');
     }
 
     if (self.description) {
-        console.log(`${self.description}\n`);
+        logger.info(`${self.description}\n`);
     }
 
     let usage_opts_width: number = 0;
@@ -253,7 +267,7 @@ function argparse_usage(self: argparse): void {
 
     for (const option of self.options) {
         if (option.type === argparse_option_type.ARGPARSE_OPT_GROUP) {
-            console.log(`\n${option.help}\n`);
+            logger.info(`\n${option.help}\n`);
             continue;
         }
 
@@ -269,14 +283,14 @@ function argparse_usage(self: argparse): void {
         if (pad > 0) {
             line += ' '.repeat(pad);
         } else {
-            console.log(line);
+            logger.info(line);
             line = ' '.repeat(usage_opts_width);
         }
-        console.log(`${line}  ${option.help}`);
+        logger.info(`${line}  ${option.help}`);
     }
 
     if (self.epilog) {
-        console.log(`\n${self.epilog}`);
+        logger.info(`\n${self.epilog}`);
     }
 }
 
