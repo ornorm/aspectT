@@ -310,6 +310,27 @@ export class Log {
     }
 
     /**
+     * Logs a message asynchronously with a specified level.
+     * @param prefix - The prefix for the log message.
+     * @param format - The format string for the log message (optional).
+     * @param level - The log level (default is 'info').
+     * @param args - The arguments for the format string.
+     * @returns A promise that resolves when the log operation is complete.
+     */
+    public static a(prefix: string, format?: string, level: LogLevel = 'info', ...args: Array<any>): Promise<void> {
+        return new Promise<void>(
+            (resolve: (value: (PromiseLike<void> | void)) => void,
+             reject: (reason?: any) => void) => {
+            try {
+                Log.l(prefix, format, level, ...args);
+                resolve();
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    /**
      * Logs a message with a specified level.
      * @param prefix The prefix for the log message.
      * @param format The format string for the log message.
