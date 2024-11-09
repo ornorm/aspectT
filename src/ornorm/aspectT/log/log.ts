@@ -79,11 +79,10 @@ export class Log {
     private static sIsUnitTestingEnabled: boolean = false;
     private static sUserExtendedLoggingStopTime: number = 0;
 
-    private static isColorEnabled: boolean = true;
-    private static isTimestampEnabled: boolean = true;
-    private static eventCache: Array<string> = [];
+    private static sIsColorEnabled: boolean = true;
+    private static sEventCache: Array<string> = [];
 
-    private static logger: Logger = createLogger({
+    private static sLogger: Logger = createLogger({
         level: 'info',
         format: format.combine(
             format.colorize(),
@@ -95,6 +94,8 @@ export class Log {
         ),
         transports: [new transports.Console()]
     });
+
+    private static sIsTimestampEnabled: boolean = true;
 
     /**
      * Gets whether debug logging is enabled.
@@ -140,11 +141,11 @@ export class Log {
      * Enables or disables colorization in the log output.
      */
     public static get colorization(): boolean {
-        return Log.isColorEnabled;
+        return Log.sIsColorEnabled;
     }
 
     public static set colorization(enable: boolean) {
-        Log.isColorEnabled = enable;
+        Log.sIsColorEnabled = enable;
         Log.updateLoggerFormat();
     }
 
@@ -153,11 +154,11 @@ export class Log {
      * @returns The current log level.
      */
     public static get level(): string {
-        return Log.logger.level;
+        return Log.sLogger.level;
     }
 
     public static set level(level: string) {
-        Log.logger.level = level;
+        Log.sLogger.level = level;
     }
 
     /**
@@ -175,11 +176,11 @@ export class Log {
      * Gets whether timestamping is enabled in the log output.
      */
     public static get timestamp(): boolean {
-        return Log.isTimestampEnabled
+        return Log.sIsTimestampEnabled
     }
 
     public static set timestamp(enable: boolean) {
-        Log.isTimestampEnabled = enable;
+        Log.sIsTimestampEnabled = enable;
         Log.updateLoggerFormat();
     }
 
@@ -187,12 +188,12 @@ export class Log {
      * Get the transport for the logger.
      */
     public static get transports(): transports.StreamTransportInstance {
-        return Log.logger.transports[0] as transports.StreamTransportInstance;
+        return Log.sLogger.transports[0] as transports.StreamTransportInstance;
     }
 
     public static set transports(newTransports: transports.StreamTransportInstance) {
-        Log.logger.clear();
-        Log.logger.add(newTransports);
+        Log.sLogger.clear();
+        Log.sLogger.add(newTransports);
     }
 
     /**
@@ -243,10 +244,10 @@ export class Log {
         if (Log.sIsUserExtendedLoggingEnabled) {
             Log.maybeDisableLogging();
             Log.cacheEvent(Log.buildMessage(prefix, messageFormat, args), Log.EVENTS_TO_CACHE_DEBUG);
-            Log.logger.info(Log.buildMessage(prefix, messageFormat, args));
+            Log.sLogger.info(Log.buildMessage(prefix, messageFormat, args));
         } else if (Log.DEBUG) {
             Log.cacheEvent(Log.buildMessage(prefix, messageFormat, args), Log.EVENTS_TO_CACHE);
-            Log.logger.debug(Log.buildMessage(prefix, messageFormat, args));
+            Log.sLogger.debug(Log.buildMessage(prefix, messageFormat, args));
         }
     }
 
@@ -259,7 +260,7 @@ export class Log {
     public static i(prefix: string, format?: string, ...args: Array<any>): void {
         if (Log.INFO) {
             const messageFormat: string = format || Log.getDefaultMessage('info');
-            Log.logger.info(Log.buildMessage(prefix, messageFormat, args));
+            Log.sLogger.info(Log.buildMessage(prefix, messageFormat, args));
         }
     }
 
@@ -274,10 +275,10 @@ export class Log {
         if (Log.sIsUserExtendedLoggingEnabled) {
             Log.maybeDisableLogging();
             Log.cacheEvent(Log.buildMessage(prefix, messageFormat, args), Log.EVENTS_TO_CACHE_DEBUG);
-            Log.logger.info(Log.buildMessage(prefix, messageFormat, args));
+            Log.sLogger.info(Log.buildMessage(prefix, messageFormat, args));
         } else if (Log.VERBOSE) {
             Log.cacheEvent(Log.buildMessage(prefix, messageFormat, args), Log.EVENTS_TO_CACHE);
-            Log.logger.verbose(Log.buildMessage(prefix, messageFormat, args));
+            Log.sLogger.verbose(Log.buildMessage(prefix, messageFormat, args));
         }
     }
 
@@ -290,7 +291,7 @@ export class Log {
     public static w(prefix: string, format?: string, ...args: Array<any>): void {
         if (Log.WARN) {
             const messageFormat: string = format || Log.getDefaultMessage('verbose');
-            Log.logger.warn(Log.buildMessage(prefix, messageFormat, args));
+            Log.sLogger.warn(Log.buildMessage(prefix, messageFormat, args));
         }
     }
 
@@ -304,7 +305,7 @@ export class Log {
     public static e(prefix: string, format?: string, error?: Error, ...args: Array<any>): void {
         if (Log.ERROR) {
             const messageFormat: string = format || Log.getDefaultMessage('verbose');
-            Log.logger.error(Log.buildMessage(prefix, messageFormat, args), error);
+            Log.sLogger.error(Log.buildMessage(prefix, messageFormat, args), error);
         }
     }
 
@@ -341,7 +342,7 @@ export class Log {
      * Clears all transports from the logger.
      */
     public static clear(): void {
-        Log.logger.clear();
+        Log.sLogger.clear();
     }
 
     /**
@@ -351,11 +352,11 @@ export class Log {
      * After logging, the event cache is cleared.
      */
     public static flush(): void {
-        const currentLevel: LogLevel = Log.logger.level as LogLevel;
-        for (const message of Log.eventCache) {
-            Log.logger.log(currentLevel, message);
+        const currentLevel: LogLevel = Log.sLogger.level as LogLevel;
+        for (const message of Log.sEventCache) {
+            Log.sLogger.log(currentLevel, message);
         }
-        Log.eventCache = [];
+        Log.sEventCache = [];
     }
 
     /**
@@ -364,7 +365,7 @@ export class Log {
      * @returns True if the log level is enabled, false otherwise.
      */
     private static isLoggable(level: string): boolean {
-        return Log.FORCE_LOGGING || Log.logger.isLevelEnabled(level);
+        return Log.FORCE_LOGGING || Log.sLogger.isLevelEnabled(level);
     }
 
     /**
@@ -393,7 +394,7 @@ export class Log {
 
     /**
      * Extracts the stack trace from an error and formats it based on the log level.
-     * @param level - The log level (e.g., 'debug', 'info', 'warn', 'error').
+     * @param level - The log level (e.g., `'debug'`, `'info'`, `'warn'`, `'error'`).
      * @param error - The error object to extract the stack trace from (optional).
      * @returns The formatted stack trace message.
      */
@@ -446,10 +447,10 @@ export class Log {
      * @param cacheSize The size of the cache.
      */
     private static cacheEvent(message: string, cacheSize: number): void {
-        if (Log.eventCache.length >= cacheSize) {
-            Log.eventCache.shift();
+        if (Log.sEventCache.length >= cacheSize) {
+            Log.sEventCache.shift();
         }
-        Log.eventCache.push(message);
+        Log.sEventCache.push(message);
     }
 
     /**
@@ -507,16 +508,16 @@ export class Log {
      */
     private static updateLoggerFormat(): void {
         const formats: Array<any> = [];
-        if (Log.isColorEnabled) {
+        if (Log.sIsColorEnabled) {
             formats.push(format.colorize());
         }
-        if (Log.isTimestampEnabled) {
+        if (Log.sIsTimestampEnabled) {
             formats.push(format.timestamp());
         }
         formats.push(format.printf((data: LogData) => {
             const { timestamp, level, message }: LogData = data;
             return `${timestamp ? `${timestamp} ` : ''}[${level}]: ${message}`;
         }));
-        Log.logger.format = format.combine(...formats);
+        Log.sLogger.format = format.combine(...formats);
     }
 }
