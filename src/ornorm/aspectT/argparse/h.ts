@@ -130,16 +130,16 @@ export type argparse = {
     usages: Array<string>;
     flags: number;
     // a description after usage
-    description: string;
+    description: string | null;
     // a description at the end
-    epilog: string;
+    epilog: string | null;
     // internal context
     argc: number;
     argv: Array<string>;
     out: Array<string>;
     cpidx: number;
     // current option value
-    optvalue: string;
+    optvalue: string | null;
 };
 
 // built-in callbacks

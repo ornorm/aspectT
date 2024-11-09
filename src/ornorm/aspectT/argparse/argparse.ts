@@ -1,13 +1,37 @@
-import { argparse, argparse_option, argparse_option_type, argparse_option_flags, argparse_flag } from '@ornorm/argparse';
+import {Log} from '@ornorm/aspectT';
+import {
+    argparse,
+    argparse_flag,
+    argparse_option,
+    argparse_option_flags,
+    argparse_option_type
+} from '@ornorm/aspectT/argparse';
 
+const TAG: string = 'argparse';
 const OPT_UNSET: number = 1;
 const OPT_LONG: number = 1 << 1;
 
+/**
+ * Removes the specified prefix from the beginning of the string if it exists.
+ *
+ * @param str - The string to process.
+ * @param prefix - The prefix to remove.
+ * @returns The string without the prefix, or null if the prefix is not found.
+ */
 function prefix_skip(str: string, prefix: string): string | null {
     const len: number = prefix.length;
     return str.startsWith(prefix) ? str.slice(len) : null;
 }
 
+/**
+ * Compares a string with a prefix.
+ *
+ * @param str - The string to compare.
+ * @param prefix - The prefix to compare against.
+ * @returns A negative number if the prefix is less than the string,
+ *          a positive number if the prefix is greater than the string,
+ *          or 0 if they are equal.
+ */
 function prefix_cmp(str: string, prefix: string): number {
     for (let i: number = 0; i < str.length && i < prefix.length; i++) {
         if (str[i] !== prefix[i]) {
@@ -17,21 +41,41 @@ function prefix_cmp(str: string, prefix: string): number {
     return 0;
 }
 
+/**
+ * Logs an error message for the given argparse option and exits the process.
+ *
+ * @param self - The argparse instance.
+ * @param opt - The argparse option that caused the error.
+ * @param reason - The reason for the error.
+ * @param flags - The flags indicating the state of the option.
+ * @see argparse
+ * @see argparse_option
+ */
 function argparse_error(self: argparse, opt: argparse_option, reason: string, flags: number): void {
     if (flags & OPT_LONG) {
-        logger.error(`Option \`--${opt.long_name}\` ${reason}`);
+        Log.e(TAG, `Option \`--${opt.long_name}\` ${reason}`);
     } else {
-        logger.error(`Option \`-${opt.short_name}\` ${reason}`);
+        Log.e(TAG, `Option \`-${opt.short_name}\` ${reason}`);
     }
     process.exit(1);
 }
 
+/**
+ * Retrieves the value for the given argparse option based on its type and flags.
+ *
+ * @param self - The argparse instance.
+ * @param opt - The argparse option for which the value is being retrieved.
+ * @param flags - The flags indicating the state of the option.
+ * @returns The value of the option.
+ * @see argparse
+ * @see argparse_option
+ */
 function argparse_getvalue(self: argparse, opt: argparse_option, flags: number): number {
     let s: string | null = null;
     if (!opt.value) return 0;
 
     switch (opt.type) {
-        case argparse_option_type.ARGPARSE_OPT_BOOLEAN:
+        case argparse_option_type.argparse_OPT_BOOLEAN:
             if (flags & OPT_UNSET) {
                 opt.value--;
             } else {
@@ -39,14 +83,14 @@ function argparse_getvalue(self: argparse, opt: argparse_option, flags: number):
             }
             if (opt.value < 0) opt.value = 0;
             break;
-        case argparse_option_type.ARGPARSE_OPT_BIT:
+        case argparse_option_type.argparse_OPT_BIT:
             if (flags & OPT_UNSET) {
                 opt.value &= ~opt.data;
             } else {
                 opt.value |= opt.data;
             }
             break;
-        case argparse_option_type.ARGPARSE_OPT_STRING:
+        case argparse_option_type.argparse_OPT_STRING:
             if (self.optvalue) {
                 opt.value = self.optvalue;
                 self.optvalue = null;
@@ -57,7 +101,7 @@ function argparse_getvalue(self: argparse, opt: argparse_option, flags: number):
                 argparse_error(self, opt, "requires a value", flags);
             }
             break;
-        case argparse_option_type.ARGPARSE_OPT_INTEGER:
+        case argparse_option_type.argparse_OPT_INTEGER:
             if (self.optvalue) {
                 opt.value = parseInt(self.optvalue, 10);
                 self.optvalue = null;
@@ -74,7 +118,7 @@ function argparse_getvalue(self: argparse, opt: argparse_option, flags: number):
                 argparse_error(self, opt, "expects an integer value", flags);
             }
             break;
-        case argparse_option_type.ARGPARSE_OPT_FLOAT:
+        case argparse_option_type.argparse_OPT_FLOAT:
             if (self.optvalue) {
                 opt.value = parseFloat(self.optvalue);
                 self.optvalue = null;
@@ -101,27 +145,43 @@ function argparse_getvalue(self: argparse, opt: argparse_option, flags: number):
     return 0;
 }
 
-function argparse_options_check(options: argparse_option[]): void {
+/**
+ * Checks the validity of the provided argparse options.
+ *
+ * @param options - An array of argparse options to be checked.
+ * @throws TypeError If an option has an invalid type.
+ * @see argparse_option
+ */
+function argparse_options_check(options: Array<argparse_option>): void {
     options.forEach((option: argparse_option) => {
         switch (option.type) {
-            case argparse_option_type.ARGPARSE_OPT_END:
-            case argparse_option_type.ARGPARSE_OPT_BOOLEAN:
-            case argparse_option_type.ARGPARSE_OPT_BIT:
-            case argparse_option_type.ARGPARSE_OPT_INTEGER:
-            case argparse_option_type.ARGPARSE_OPT_FLOAT:
-            case argparse_option_type.ARGPARSE_OPT_STRING:
-            case argparse_option_type.ARGPARSE_OPT_GROUP:
+            case argparse_option_type.argparse_OPT_END:
+            case argparse_option_type.argparse_OPT_BOOLEAN:
+            case argparse_option_type.argparse_OPT_BIT:
+            case argparse_option_type.argparse_OPT_INTEGER:
+            case argparse_option_type.argparse_OPT_FLOAT:
+            case argparse_option_type.argparse_OPT_STRING:
+            case argparse_option_type.argparse_OPT_GROUP:
                 break;
             default:
-                throw new Error(`wrong option type: ${option.type}`);
+                throw new TypeError(`wrong option type: ${option.type}`);
         }
     });
 }
 
-function argparse_short_opt(self: argparse, options: argparse_option[]): number {
+/**
+ * Parses a short option from the command-line arguments.
+ *
+ * @param self - The argparse instance.
+ * @param options - An array of argparse options.
+ * @returns The result of parsing the short option.
+ * @see argparse
+ * @see argparse_option
+ */
+function argparse_short_opt(self: argparse, options: Array<argparse_option>): number {
     for (const option of options) {
-        if (option.type === argparse_option_type.ARGPARSE_OPT_END) break;
-        if (option.short_name === self.optvalue[0]) {
+        if (option.type === argparse_option_type.argparse_OPT_END) break;
+        if (option.short_name === self.optvalue?.[0]) {
             self.optvalue = self.optvalue.slice(1);
             return argparse_getvalue(self, option, 0);
         }
@@ -129,15 +189,25 @@ function argparse_short_opt(self: argparse, options: argparse_option[]): number 
     return -2;
 }
 
-function argparse_long_opt(self: argparse, options: argparse_option[]): number {
+/**
+ * Parses a long option from the command-line arguments.
+ *
+ * @param self - The argparse instance.
+ * @param options - An array of argparse options.
+ * @returns The result of parsing the long option.
+ * @see argparse
+ * @see argparse_option
+ */
+function argparse_long_opt(self: argparse, options: Array<argparse_option>): number {
     for (const option of options) {
-        if (option.type === argparse_option_type.ARGPARSE_OPT_END) break;
+        if (option.type === argparse_option_type.argparse_OPT_END) break;
         if (!option.long_name) continue;
 
         let rest: string | null = prefix_skip(self.argv[0].slice(2), option.long_name);
         if (!rest) {
             if (option.flags & argparse_option_flags.OPT_NONEG) continue;
-            if (option.type !== argparse_option_type.ARGPARSE_OPT_BOOLEAN && option.type !== argparse_option_type.ARGPARSE_OPT_BIT) continue;
+            if (option.type !== argparse_option_type.argparse_OPT_BOOLEAN &&
+                option.type !== argparse_option_type.argparse_OPT_BIT) continue;
             if (!prefix_cmp(self.argv[0].slice(2), "no-")) continue;
             rest = prefix_skip(self.argv[0].slice(5), option.long_name);
             if (!rest) continue;
@@ -153,7 +223,18 @@ function argparse_long_opt(self: argparse, options: argparse_option[]): number {
     return -2;
 }
 
-function argparse_init(self: argparse, options: argparse_option[], usages: string[], flags: number): number {
+/**
+ * Initializes the argparse instance with the given options, usages, and flags.
+ *
+ * @param self - The argparse instance.
+ * @param options - An array of argparse options.
+ * @param usages - An array of usage strings.
+ * @param flags - The flags for the argparse instance.
+ * @returns Always returns 0.
+ * @see argparse
+ * @see argparse_option
+ */
+function argparse_init(self: argparse, options: Array<argparse_option>, usages: Array<string>, flags: number): number {
     self.options = options;
     self.usages = usages;
     self.flags = flags;
@@ -167,12 +248,29 @@ function argparse_init(self: argparse, options: argparse_option[], usages: strin
     return 0;
 }
 
+/**
+ * Sets the description and epilog for the argparse instance.
+ *
+ * @param self - The argparse instance.
+ * @param description - The description of the argparse instance.
+ * @param epilog - The epilog of the argparse instance.
+ * @see argparse
+ */
 function argparse_describe(self: argparse, description: string, epilog: string): void {
     self.description = description;
     self.epilog = epilog;
 }
 
-function argparse_parse(self: argparse, argc: number, argv: string[]): number {
+/**
+ * Parses the command-line arguments.
+ *
+ * @param self - The argparse instance.
+ * @param argc - The number of command-line arguments.
+ * @param argv - The array of command-line arguments.
+ * @returns The number of remaining arguments.
+ * @see argparse
+ */
+function argparse_parse(self: argparse, argc: number, argv: Array<string>): number {
     self.argc = argc - 1;
     self.argv = argv.slice(1);
     self.out = argv;
@@ -182,7 +280,7 @@ function argparse_parse(self: argparse, argc: number, argv: string[]): number {
     while (self.argc) {
         const arg: string = self.argv[0];
         if (arg[0] !== '-' || arg.length === 1) {
-            if (self.flags & argparse_flag.ARGPARSE_STOP_AT_NON_OPTION) break;
+            if (self.flags & argparse_flag.argparse_STOP_AT_NON_OPTION) break;
             self.out[self.cpidx++] = self.argv.shift() as string;
             self.argc--;
             continue;
@@ -193,9 +291,9 @@ function argparse_parse(self: argparse, argc: number, argv: string[]): number {
             while (self.optvalue) {
                 const result: number = argparse_short_opt(self, self.options);
                 if (result === -2) {
-                    logger.error(`Unknown option \`${arg}\``);
+                    Log.e(TAG, `Unknown option \`${arg}\``);
                     argparse_usage(self);
-                    if (!(self.flags & argparse_flag.ARGPARSE_IGNORE_UNKNOWN_ARGS)) {
+                    if (!(self.flags & argparse_flag.argparse_IGNORE_UNKNOWN_ARGS)) {
                         process.exit(1);
                     }
                 }
@@ -211,9 +309,9 @@ function argparse_parse(self: argparse, argc: number, argv: string[]): number {
 
         const result: number = argparse_long_opt(self, self.options);
         if (result === -2) {
-            logger.error(`Unknown option \`${arg}\``);
+            Log.e(TAG, `Unknown option \`${arg}\``);
             argparse_usage(self);
-            if (!(self.flags & argparse_flag.ARGPARSE_IGNORE_UNKNOWN_ARGS)) {
+            if (!(self.flags & argparse_flag.argparse_IGNORE_UNKNOWN_ARGS)) {
                 process.exit(1);
             }
         }
@@ -227,15 +325,21 @@ function argparse_parse(self: argparse, argc: number, argv: string[]): number {
     return self.argc;
 }
 
+/**
+ * Displays the usage information for the argparse instance.
+ *
+ * @param self - The argparse instance.
+ * @see argparse
+ */
 function argparse_usage(self: argparse): void {
     if (self.usages.length) {
-        logger.info(`Usage: ${self.usages.join('\n   or: ')}`);
+        Log.i(TAG, `Usage: ${self.usages.join('\n   or: ')}`);
     } else {
-        logger.info('Usage:');
+        Log.i(TAG, 'Usage:');
     }
 
     if (self.description) {
-        logger.info(`${self.description}\n`);
+        Log.i(TAG, `${self.description}\n`);
     }
 
     let usage_opts_width: number = 0;
@@ -244,17 +348,17 @@ function argparse_usage(self: argparse): void {
         if (option.short_name) len += 2;
         if (option.short_name && option.long_name) len += 2;
         if (option.long_name) len += option.long_name.length + 2;
-        if (option.type === argparse_option_type.ARGPARSE_OPT_INTEGER) len += 6;
-        if (option.type === argparse_option_type.ARGPARSE_OPT_FLOAT) len += 6;
-        if (option.type === argparse_option_type.ARGPARSE_OPT_STRING) len += 6;
+        if (option.type === argparse_option_type.argparse_OPT_INTEGER) len += 6;
+        if (option.type === argparse_option_type.argparse_OPT_FLOAT) len += 6;
+        if (option.type === argparse_option_type.argparse_OPT_STRING) len += 6;
         len = (len + 3) & ~3;
         if (usage_opts_width < len) usage_opts_width = len;
     }
     usage_opts_width += 4;
 
     for (const option of self.options) {
-        if (option.type === argparse_option_type.ARGPARSE_OPT_GROUP) {
-            logger.info(`\n${option.help}\n`);
+        if (option.type === argparse_option_type.argparse_OPT_GROUP) {
+            Log.i(TAG, `\n${option.help}\n`);
             continue;
         }
 
@@ -262,31 +366,64 @@ function argparse_usage(self: argparse): void {
         if (option.short_name) line += `-${option.short_name}`;
         if (option.long_name && option.short_name) line += ', ';
         if (option.long_name) line += `--${option.long_name}`;
-        if (option.type === argparse_option_type.ARGPARSE_OPT_INTEGER) line += '=int';
-        if (option.type === argparse_option_type.ARGPARSE_OPT_FLOAT) line += '=flt';
-        if (option.type === argparse_option_type.ARGPARSE_OPT_STRING) line += '=str';
+        if (option.type === argparse_option_type.argparse_OPT_INTEGER) line += '=int';
+        if (option.type === argparse_option_type.argparse_OPT_FLOAT) line += '=flt';
+        if (option.type === argparse_option_type.argparse_OPT_STRING) line += '=str';
 
         const pad: number = usage_opts_width - line.length;
         if (pad > 0) {
             line += ' '.repeat(pad);
         } else {
-            logger.info(line);
+            Log.i(TAG, line);
             line = ' '.repeat(usage_opts_width);
         }
-        logger.info(`${line}  ${option.help}`);
+        Log.i(TAG, `${line}  ${option.help}`);
     }
 
     if (self.epilog) {
-        logger.info(`\n${self.epilog}`);
+        Log.i(TAG, `\n${self.epilog}`);
     }
 }
 
+/**
+ * Callback function to display help message without exiting the process.
+ *
+ * @param self - The argparse instance.
+ * @param option - The argparse option triggering the callback.
+ * @returns Always returns 0.
+ * @see argparse
+ * @see argparse_option
+ */
 function argparse_help_cb_no_exit(self: argparse, option: argparse_option): number {
     argparse_usage(self);
     return 0;
 }
 
+/**
+ * Callback function to display help message and exit the process.
+ *
+ * @param self - The argparse instance.
+ * @param option - The argparse option triggering the callback.
+ * @see argparse
+ * @see argparse_option
+ */
 function argparse_help_cb(self: argparse, option: argparse_option): void {
     argparse_usage(self);
     process.exit(0);
+}
+
+export {
+    prefix_skip,
+    prefix_cmp,
+    argparse_error,
+    argparse_getvalue,
+    argparse_options_check,
+    argparse_short_opt,
+    argparse_long_opt,
+    argparse_init,
+    argparse_describe,
+    argparse_parse,
+    argparse_usage,
+    argparse_help_cb_no_exit,
+    argparse_help_cb
 }
