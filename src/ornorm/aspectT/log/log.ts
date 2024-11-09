@@ -79,6 +79,7 @@ export class Log {
     private static sIsUnitTestingEnabled: boolean = false;
     private static sUserExtendedLoggingStopTime: number = 0;
 
+    private static isColorEnabled: boolean = true;
     private static eventCache: Array<string> = [];
 
     private static logger: Logger = createLogger({
@@ -132,6 +133,18 @@ export class Log {
      */
     public static get ERROR(): boolean {
         return Log.isLoggable('error');
+    }
+
+    /**
+     * Enables or disables colorization in the log output.
+     */
+    public static get colorization(): boolean {
+        return Log.isColorEnabled;
+    }
+
+    public static set colorization(enable: boolean) {
+        Log.isColorEnabled = enable;
+        Log.updateLoggerFormat();
     }
 
     /**
@@ -474,5 +487,19 @@ export class Log {
             Log.sUserExtendedLoggingStopTime = 0;
             Log.sIsUserExtendedLoggingEnabled = false;
         }
+    }
+
+    /**
+     * Updates the logger format based on the colorization setting.
+     */
+    private static updateLoggerFormat(): void {
+        Log.logger.format = format.combine(
+            Log.isColorEnabled ? format.colorize() : format.uncolorize(),
+            format.timestamp(),
+            format.printf((data: LogData) => {
+                const { timestamp, level, message }: LogData = data;
+                return `${timestamp} [${level}]: ${message}`;
+            })
+        );
     }
 }
