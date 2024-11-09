@@ -80,6 +80,7 @@ export class Log {
     private static sUserExtendedLoggingStopTime: number = 0;
 
     private static isColorEnabled: boolean = true;
+    private static isTimestampEnabled: boolean = true;
     private static eventCache: Array<string> = [];
 
     private static logger: Logger = createLogger({
@@ -168,6 +169,18 @@ export class Log {
 
     public static set tag(tag: string) {
         Log.TAG = tag;
+    }
+
+    /**
+     * Gets whether timestamping is enabled in the log output.
+     */
+    public static get timestamp(): boolean {
+        return Log.isTimestampEnabled
+    }
+
+    public static set timestamp(enable: boolean) {
+        Log.isTimestampEnabled = enable;
+        Log.updateLoggerFormat();
     }
 
     /**
@@ -493,13 +506,17 @@ export class Log {
      * Updates the logger format based on the colorization setting.
      */
     private static updateLoggerFormat(): void {
-        Log.logger.format = format.combine(
-            Log.isColorEnabled ? format.colorize() : format.uncolorize(),
-            format.timestamp(),
-            format.printf((data: LogData) => {
-                const { timestamp, level, message }: LogData = data;
-                return `${timestamp} [${level}]: ${message}`;
-            })
-        );
+        const formats: Array<any> = [];
+        if (Log.isColorEnabled) {
+            formats.push(format.colorize());
+        }
+        if (Log.isTimestampEnabled) {
+            formats.push(format.timestamp());
+        }
+        formats.push(format.printf((data: LogData) => {
+            const { timestamp, level, message }: LogData = data;
+            return `${timestamp ? `${timestamp} ` : ''}[${level}]: ${message}`;
+        }));
+        Log.logger.format = format.combine(...formats);
     }
 }
