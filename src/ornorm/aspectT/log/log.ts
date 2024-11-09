@@ -16,13 +16,47 @@ import { createLogger, format, Logger, transports } from 'winston';
  * Interface representing the structure of log data.
  */
 export interface LogData {
+    /**
+     * The log level (e.g., 'debug', 'info', 'verbose', 'warn', 'error').
+     */
     level: string;
+    /**
+     * The log message.
+     */
     message: any;
+    /**
+     * The log level symbol from 'triple-beam'.
+     */
     [LEVEL]?: string;
+    /**
+     * The formatted log message.
+     */
     [MESSAGE]?: any;
+    /**
+     * Additional metadata for the log message.
+     */
     [SPLAT]?: any;
+    /**
+     * Additional properties for the log data.
+     */
     [key: string | symbol]: any;
 }
+
+/**
+ * Type representing the possible log levels.
+ *
+ * The supported log levels are:
+ * - `debug`: Detailed information, typically of interest only when
+ * diagnosing problems.
+ * - `info`: Confirmation that things are working as expected.
+ * - `verbose`: Detailed information on the flow through the system.
+ * - `warn`: An indication that something unexpected happened, or
+ * indicative of some problem in the near future (e.g., ‘disk space low’).
+ * The software is still working as expected.
+ * - `error`: Due to a more serious problem, the software has not been
+ * able to perform some function.
+ */
+export type LogLevel = 'debug' | 'info' | 'verbose' | 'warn' | 'error';
 
 /**
  * Manages logging for the entire module.
@@ -40,6 +74,8 @@ export class Log {
     private static sIsUnitTestingEnabled: boolean = false;
     private static sUserExtendedLoggingStopTime: number = 0;
 
+    private static eventCache: Array<string> = [];
+
     private static logger: Logger = createLogger({
         level: 'info',
         format: format.combine(
@@ -53,9 +89,6 @@ export class Log {
         transports: [new transports.Console()]
     });
 
-    private static eventCache: Array<string> = [];
-
-    private constructor() {}
     /**
      * Gets whether debug logging is enabled.
      * @returns True if debug logging is enabled, false otherwise.
@@ -104,12 +137,19 @@ export class Log {
         return Log.logger.level;
     }
 
-    /**
-     * Sets the log level.
-     * @param level The new log level.
-     */
     public static set level(level: string) {
         Log.logger.level = level;
+    }
+
+    /**
+     * Gets the current log tag.
+     */
+    public static get tag(): string {
+        return Log.TAG;
+    }
+
+    public static set tag(tag: string) {
+        Log.TAG = tag;
     }
 
     /**
@@ -155,15 +195,15 @@ export class Log {
      * @param format The format string for the log message.
      * @param args The arguments for the format string.
      */
-    public static d(prefix: string, format: string): void;
-    public static d(prefix: string, format: string, ...args: Array<any>): void {
+    public static d(prefix: string, format?: string, ...args: Array<any>): void {
+        const messageFormat: string = format || Log.getDefaultMessage('debug');
         if (Log.sIsUserExtendedLoggingEnabled) {
             Log.maybeDisableLogging();
-            Log.cacheEvent(Log.buildMessage(prefix, format, args), Log.EVENTS_TO_CACHE_DEBUG);
-            Log.logger.info(Log.buildMessage(prefix, format, args));
+            Log.cacheEvent(Log.buildMessage(prefix, messageFormat, args), Log.EVENTS_TO_CACHE_DEBUG);
+            Log.logger.info(Log.buildMessage(prefix, messageFormat, args));
         } else if (Log.DEBUG) {
-            Log.cacheEvent(Log.buildMessage(prefix, format, args), Log.EVENTS_TO_CACHE);
-            Log.logger.debug(Log.buildMessage(prefix, format, args));
+            Log.cacheEvent(Log.buildMessage(prefix, messageFormat, args), Log.EVENTS_TO_CACHE);
+            Log.logger.debug(Log.buildMessage(prefix, messageFormat, args));
         }
     }
 
@@ -173,10 +213,10 @@ export class Log {
      * @param format The format string for the log message.
      * @param args The arguments for the format string.
      */
-    public static i(prefix: string, format: string): void;
-    public static i(prefix: string, format: string, ...args: Array<any>): void {
+    public static i(prefix: string, format?: string, ...args: Array<any>): void {
         if (Log.INFO) {
-            Log.logger.info(Log.buildMessage(prefix, format, args));
+            const messageFormat: string = format || Log.getDefaultMessage('info');
+            Log.logger.info(Log.buildMessage(prefix, messageFormat, args));
         }
     }
 
@@ -186,16 +226,15 @@ export class Log {
      * @param format The format string for the log message.
      * @param args The arguments for the format string.
      */
-    public static v(prefix: string, format: string, ...args: Array<any>): void;
-    public static v(prefix: string, format: string): void;
-    public static v(prefix: string, format: string, ...args: Array<any>): void {
+    public static v(prefix: string, format?: string, ...args: Array<any>): void {
+        const messageFormat: string = format || Log.getDefaultMessage('verbose');
         if (Log.sIsUserExtendedLoggingEnabled) {
             Log.maybeDisableLogging();
-            Log.cacheEvent(Log.buildMessage(prefix, format, args), Log.EVENTS_TO_CACHE_DEBUG);
-            Log.logger.info(Log.buildMessage(prefix, format, args));
+            Log.cacheEvent(Log.buildMessage(prefix, messageFormat, args), Log.EVENTS_TO_CACHE_DEBUG);
+            Log.logger.info(Log.buildMessage(prefix, messageFormat, args));
         } else if (Log.VERBOSE) {
-            Log.cacheEvent(Log.buildMessage(prefix, format, args), Log.EVENTS_TO_CACHE);
-            Log.logger.verbose(Log.buildMessage(prefix, format, args));
+            Log.cacheEvent(Log.buildMessage(prefix, messageFormat, args), Log.EVENTS_TO_CACHE);
+            Log.logger.verbose(Log.buildMessage(prefix, messageFormat, args));
         }
     }
 
@@ -205,10 +244,10 @@ export class Log {
      * @param format The format string for the log message.
      * @param args The arguments for the format string.
      */
-    public static w(prefix: string, format: string): void;
-    public static w(prefix: string, format: string, ...args: Array<any>): void {
+    public static w(prefix: string, format?: string, ...args: Array<any>): void {
         if (Log.WARN) {
-            Log.logger.warn(Log.buildMessage(prefix, format, args));
+            const messageFormat: string = format || Log.getDefaultMessage('verbose');
+            Log.logger.warn(Log.buildMessage(prefix, messageFormat, args));
         }
     }
 
@@ -219,31 +258,39 @@ export class Log {
      * @param error The error object.
      * @param args The arguments for the format string.
      */
-    public static e(prefix: string, format: string, error?: Error): void;
-    public static e(prefix: string, format: string, error: Error, ...args: Array<any>): void {
+    public static e(prefix: string, format?: string, error?: Error, ...args: Array<any>): void {
         if (Log.ERROR) {
-            Log.logger.error(Log.buildMessage(prefix, format, args), error);
+            const messageFormat: string = format || Log.getDefaultMessage('verbose');
+            Log.logger.error(Log.buildMessage(prefix, messageFormat, args), error);
         }
     }
 
     /**
-     * Logs a critical `panic` error message.
+     * Logs a message with a specified level.
      * @param prefix The prefix for the log message.
-     * @param error The error object.
      * @param format The format string for the log message.
+     * @param level The log level (default is 'info').
      * @param args The arguments for the format string.
      */
-    public static p(prefix: string, error: Error, format: string): void;
-    public static p(prefix: string, error: Error, format: string, ...args: Array<any>): void {
-        Log.logger.error(Log.buildMessage(prefix, format, args), error);
-    }
-
-    /**
-     * Sets the log tag.
-     * @param tag The new log tag.
-     */
-    public static setTag(tag: string): void {
-        Log.TAG = tag;
+    public static l(prefix: string, format?: string, level: string = 'info', ...args: Array<any>): void {
+        switch (level.toLowerCase()) {
+            case 'debug':
+                Log.d(prefix, format, ...args);
+                break;
+            case 'verbose':
+                Log.v(prefix, format, ...args);
+                break;
+            case 'warn':
+                Log.w(prefix, format, ...args);
+                break;
+            case 'error':
+                Log.e(prefix, format, ...args);
+                break;
+            case 'info':
+            default:
+                Log.i(prefix, format, ...args);
+                break;
+        }
     }
 
     /**
@@ -280,6 +327,55 @@ export class Log {
     }
 
     /**
+     * Extracts the stack trace from an error and formats it based on the log level.
+     * @param level - The log level (e.g., 'debug', 'info', 'warn', 'error').
+     * @param error - The error object to extract the stack trace from (optional).
+     * @returns The formatted stack trace message.
+     */
+    private static extractStackTrace(level: string, error?: Error): string {
+        const err: Error = new Error();
+        const stack: string[] = err.stack?.split('\n') || [];
+        const className: string = 'Log';
+        for (let i: number = 1; i < stack.length; i++) {
+            const line: string = stack[i].trim();
+            if (!line.includes(className)) {
+                const match: RegExpMatchArray | null = line.match(/at (.+) \((.+):(\d+):(\d+)\)/);
+                if (match) {
+                    const method: string = match[1];
+                    const file: string = match[2];
+                    const line: string = match[3];
+                    const column: string = match[4];
+                    let message: string = `Error in method: ${method}, file: ${file}, line: ${line}, column: ${column}`;
+                    switch (level.toLowerCase()) {
+                        case 'debug':
+                            message = `Debugging issue in method: ${method}, file: ${file}, line: ${line}, column: ${column}`;
+                            break;
+                        case 'verbose':
+                            message = `Verbose log in method: ${method}, file: ${file}, line: ${line}, column: ${column}`;
+                            break;
+                        case 'warn':
+                            message = `Warning in method: ${method}, file: ${file}, line: ${line}, column: ${column}`;
+                            break;
+                        case 'error':
+                            message = `Error in method: ${method}, file: ${file}, line: ${line}, column: ${column}`;
+                            break;
+                        case 'info':
+                        default:
+                            message = `Info log in method: ${method}, file: ${file}, line: ${line}, column: ${column}`;
+                            break;
+                    }
+
+                    if (error) {
+                        message += `\nOriginal error: ${error.message}`;
+                    }
+                    return message;
+                }
+            }
+        }
+        return '';
+    }
+
+    /**
      * Caches an event message.
      * @param message The message to cache.
      * @param cacheSize The size of the cache.
@@ -289,6 +385,34 @@ export class Log {
             Log.eventCache.shift();
         }
         Log.eventCache.push(message);
+    }
+
+    /**
+     * Gets the default message for a given log level.
+     * If an error is provided, it extracts the stack trace from the error.
+     *
+     * @param level - The log level (e.g., 'debug', 'info', 'warn', 'error').
+     * @param error - The error object to extract the stack trace from (optional).
+     * @returns The default log message or the extracted stack trace message.
+     */
+    private static getDefaultMessage(level: string, error?: Error): string {
+        const message: string = Log.extractStackTrace(level, error);
+        if (message) {
+            return message;
+        }
+        switch (level.toLowerCase()) {
+            case 'debug':
+                return 'Debugging issue: Caller method not found in stack trace.';
+            case 'verbose':
+                return 'Verbose log: Caller method not found in stack trace.';
+            case 'warn':
+                return 'Warning: Caller method not found in stack trace.';
+            case 'error':
+                return 'Error: Caller method not found in stack trace.';
+            case 'info':
+            default:
+                return 'Info log: Caller method not found in stack trace.';
+        }
     }
 
     /**
