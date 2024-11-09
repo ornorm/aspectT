@@ -52,6 +52,11 @@ export const ASPECT_T_BANNER_HEADER: string = `
 ==========================================
 ============== AspectT CLI ===============
 ==========================================
+Project: AspectT
+Version: 1.0.0
+Author: ornorm
+Date: ${new Date().toISOString().split('T')[0]}
+==========================================
 `;
 
 // Configure winston to log to a file in the tmp folder
@@ -81,5 +86,8 @@ export class Term {
     public logBannerHeader(): void {
         console.log(ASPECT_T_ASCII_ART_HEADER);
         console.log(ASPECT_T_BANNER_HEADER);
+        logger.info('Application started. Header displayed.');
     }
 }
+
+export { logger };
