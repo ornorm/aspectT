@@ -5,13 +5,26 @@
     "description": "My App Description"
   },
   "deployment": {
-      "env":  "dev",
-      "host": "localhost",
-      "port": 8080
-    },
+    "env": "dev",
+    "host": "localhost",
+    "port": 8080
+  },
   "debug": {
     "debugPort": 5858,
     "logLevel": "info",
-    "logFile": "logs/app.log"
+    "logFile": "logs/app.log",
+    "socket": {
+      "port": 6000,
+      "host": "localhost",
+      "protocol": "tcp"
+    },
+    "instrumentation": {
+      "enabled": true,
+      "dataCaptureLevel": "full"
+    },
+    "performanceMetrics": {
+      "capture": true,
+      "endpoint": "http://localhost:8080/metrics"
+    }
   }
 }
