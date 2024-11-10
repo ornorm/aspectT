@@ -31,7 +31,7 @@
  * questions.
  */
 
-import {FileFilter} from '@ornorm/aspectT';
+import {FileFilter, Path} from '@ornorm/aspectT';
 import {execSync} from 'child_process';
 import {EventEmitter} from 'events';
 import {
@@ -40,6 +40,7 @@ import {
     constants,
     createReadStream,
     createWriteStream,
+    EncodingOption,
     existsSync,
     FSWatcher,
     mkdirSync,
@@ -74,7 +75,7 @@ export type WatchHandler = (eventType: string, filename: string | null) => void;
  * @template T - The type of the statistics values, defaults to `number`.
  * @see StatsBase
  */
-export class FileStats<T = number> implements StatsBase<T> {
+export class FileStats<T> implements StatsBase<T> {
     private readonly stats: StatsBase<T>;
 
     /**
@@ -219,8 +220,8 @@ export class FileStats<T = number> implements StatsBase<T> {
      * @returns A `FileStats` object containing the statistics of the file.
      * @see FileStats
      */
-    public static get(filePath: string): FileStats {
-        return new FileStats(statSync(filePath))
+    public static get(filePath: string): FileStats<number> {
+        return new FileStats<number>(statSync(filePath))
     }
 
     /**
@@ -400,7 +401,7 @@ export class FileStats<T = number> implements StatsBase<T> {
  * @author  Aimé Biendo <abiendo@gmail.com>
  * @since   aspectT1.0
  */
-export class FileObject extends EventEmitter {
+export class FileObject extends EventEmitter implements Path {
     /**
      * This abstract path name's normalized pathname string.
      *
@@ -408,7 +409,7 @@ export class FileObject extends EventEmitter {
      * character and does not contain any duplicate or redundant separators.
      */
     protected filePath: string;
-    protected fileStats: FileStats;
+    protected fileStats: FileStats<number>;
 
     /**
      * Creates a new `FileObject` instance by converting the given
@@ -620,6 +621,7 @@ export class FileObject extends EventEmitter {
      * Equivalent to {@link absolutePath}.
      * @return  The absolute abstract pathname denoting the same file or
      *          directory as this abstract pathname
+     *  @see FileObject
      */
     public get absoluteFile(): FileObject {
         return new FileObject(this.absolutePath);
@@ -761,6 +763,20 @@ export class FileObject extends EventEmitter {
      */
     public get exists(): boolean {
         return existsSync(this.filePath);
+    }
+
+    /**
+     * Returns the name of the file or directory denoted by this path as a
+     * {@code Path} object.
+     *
+     * The file name is the <em>farthest</em> element from
+     * the root in the directory hierarchy.
+     *
+     * @return  a path representing the name of the file or directory, or
+     *          {@code null} if this path has zero elements
+     */
+    public get fileName(): Path | null {
+        return this;
     }
 
     /**
@@ -920,6 +936,16 @@ export class FileObject extends EventEmitter {
     }
 
     /**
+     * Returns the number of name elements in the path.
+     *
+     * @return  the number of elements in the path, or {@code 0} if this path
+     *          only represents a root component
+     */
+    public get nameCount(): number {
+        return this.filePath.split(sep).filter(Boolean).length;
+    }
+
+    /**
      * Returns the pathname string of this abstract path name's `parent`, or
      * `null` if this pathname does not name a `parent` directory.
      *
@@ -959,6 +985,14 @@ export class FileObject extends EventEmitter {
     }
 
     /**
+     * Returns the parent path, or if this path does not have a parent.
+     */
+    public get parentPath(): Path | null {
+        const parentPath: string | null = this.parent;
+        return parentPath ? new FileObject(parentPath) : null;
+    }
+
+    /**
      * Converts this abstract pathname into a pathname string.
      *
      * The resulting string uses the {@link separator} default name-separator
@@ -969,13 +1003,25 @@ export class FileObject extends EventEmitter {
     }
 
     /**
+     * Returns the root component of this path as a {@code Path} object,
+     * or {@code null} if this path does not have a root component.
+     *
+     * @return  a path representing the root component of this path,
+     *          or {@code null}
+     */
+    public get root(): Path | null {
+        const rootPath: string = this.filePath.split(sep)[0];
+        return rootPath ? new FileObject(rootPath) : null;
+    }
+
+    /**
      * Returns the size of the partition by this abstract pathname.
      *
      * @return  The size, in bytes, of the partition or <tt>0L</tt> if this
      *          abstract pathname does not name a partition
      */
     public get totalSpace(): number {
-        const stats: FileStats = this.fileStats;
+        const stats: FileStats<number> = this.fileStats;
         return stats.blksize * stats.blocks;
     }
 
@@ -1181,6 +1227,14 @@ export class FileObject extends EventEmitter {
     }
 
     /**
+     * @inheritDoc
+     */
+    public endsWith(other: Path | string): boolean {
+        const otherPath: string = typeof other === 'string' ? other : other.valueOf();
+        return this.filePath.endsWith(otherPath);
+    }
+
+    /**
      * Tests this abstract pathname for equality with the given object.
      * Returns `true` if and only if the argument is not `null` and is an
      * abstract pathname that denotes the same file or directory as this
@@ -1198,6 +1252,17 @@ export class FileObject extends EventEmitter {
      */
     public equals(other: FileObject): boolean {
         return this.filePath === other.filePath;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public getName(index: number): Path {
+        const names: Array<string> = this.filePath.split(sep).filter(Boolean);
+        if (index < 0 || index >= names.length) {
+            throw new RangeError('Index out of range');
+        }
+        return new FileObject(names[index]);
     }
 
     /**
@@ -1350,6 +1415,48 @@ export class FileObject extends EventEmitter {
     }
 
     /**
+     * @inheritDoc
+     */
+    public normalize(): Path {
+        const parts: Array<string> = this.filePath.split(sep);
+        const stack: Array<string> = [];
+
+        for (const part of parts) {
+            if (part === '.' || part === '') {
+                continue;
+            }
+            if (part === '..') {
+                if (stack.length > 0) {
+                    stack.pop();
+                }
+            } else {
+                stack.push(part);
+            }
+        }
+        const normalizedPath: string = stack.join(sep);
+        return new FileObject(normalizedPath);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public relativize(other: Path | string): Path {
+        const otherPath: string = typeof other === 'string' ? other : other.valueOf();
+        const fromParts: Array<string> = this.filePath.split(sep);
+        const toParts: Array<string> = otherPath.split(sep);
+        // Remove common parts
+        while (fromParts.length && toParts.length && fromParts[0] === toParts[0]) {
+            fromParts.shift();
+            toParts.shift();
+        }
+        // Add '..' for each remaining part in fromParts
+        const relativeParts: Array<string> =
+            fromParts.map(() => '..').concat(toParts);
+        const relativePath: string = relativeParts.join(sep);
+        return new FileObject(relativePath);
+    }
+
+    /**
      * Reads data from the file denoted by this abstract pathname.
      *
      * The method returns a `ReadStream` object that can be used to
@@ -1393,6 +1500,28 @@ export class FileObject extends EventEmitter {
         } catch {
             return false;
         }
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public resolve(other: Path | string): Path {
+        const otherPath: string = typeof other === 'string' ? other : other.valueOf();
+        const resolvedPath: string = resolve(this.filePath, otherPath);
+        return new FileObject(resolvedPath);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public resolveSibling(other: Path | string): Path {
+        const parentPath: string | null = this.parent;
+        if (parentPath === null) {
+            throw new ReferenceError('Cannot resolve sibling for a path with no parent');
+        }
+        const otherPath: string = typeof other === 'string' ? other : other.valueOf();
+        const resolvedPath: string = resolve(parentPath, otherPath);
+        return new FileObject(resolvedPath);
     }
 
     /**
@@ -1532,6 +1661,30 @@ export class FileObject extends EventEmitter {
     }
 
     /**
+     * @inheritDoc
+     */
+    public startsWith(other: Path | string): boolean {
+        const otherPath: string = typeof other === 'string' ? other : other.valueOf();
+        return this.filePath.startsWith(otherPath);
+    }
+
+
+    /**
+     * @inheritDoc
+     */
+    public subpath(beginIndex: number = 0, endIndex: number = -1): Path {
+        const names: Array<string> = this.filePath.split(sep).filter(Boolean);
+        if (endIndex === -1) {
+            endIndex = names.length;
+        }
+        if (beginIndex < 0 || endIndex > names.length || beginIndex >= endIndex) {
+            throw new RangeError('Invalid subpath indices');
+        }
+        const subpath: string = names.slice(beginIndex, endIndex).join(sep);
+        return new FileObject(subpath);
+    }
+
+    /**
      * Synchronizes the file statistics for the current file path.
      *
      * This method updates the `fileStats` property with the latest
@@ -1539,6 +1692,25 @@ export class FileObject extends EventEmitter {
      */
     public sync(): void {
         this.fileStats = FileStats.get(this.filePath);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public toAbsolutePath(): Path {
+        if (this.isAbsolute) {
+            return this;
+        }
+        const absolutePath: string = resolve(this.filePath);
+        return new FileObject(absolutePath);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public toRealPath(options?: EncodingOption): Path {
+        const realPath: string = realpathSync(this.filePath, options);
+        return new FileObject(realPath);
     }
 
     /**
@@ -1562,6 +1734,13 @@ export class FileObject extends EventEmitter {
      * @return  The string form of this abstract pathname
      */
     public toString(): string {
+        return this.filePath;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public valueOf(): string {
         return this.filePath;
     }
 
