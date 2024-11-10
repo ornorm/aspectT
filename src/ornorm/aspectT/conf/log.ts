@@ -140,11 +140,11 @@ export class Log {
     /**
      * Enables or disables colorization in the log output.
      */
-    public static get colorization(): boolean {
+    public static get color(): boolean {
         return Log.sIsColorEnabled;
     }
 
-    public static set colorization(enable: boolean) {
+    public static set color(enable: boolean) {
         Log.sIsColorEnabled = enable;
         Log.updateLoggerFormat();
     }
@@ -384,8 +384,9 @@ export class Log {
      * Checks if a log level is enabled.
      * @param level The log level to check.
      * @returns True if the log level is enabled, false otherwise.
+     * @see LogLevel
      */
-    private static isLoggable(level: string): boolean {
+    private static isLoggable(level: LogLevel): boolean {
         return Log.FORCE_LOGGING || Log.sLogger.isLevelEnabled(level);
     }
 

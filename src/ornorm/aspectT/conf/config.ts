@@ -36,10 +36,22 @@ export interface AppInfo {
 export interface DebugInfo {
     /** The port number used for debugging. */
     debugPort: number;
-    /** The level of logging (e.g., 'info', 'warn', 'error'). */
-    logLevel: string;
+    /**
+     * The instrumentation information.
+     * @see InstrumentationInfo
+     */
+    readonly instrumentation: InstrumentationInfo;
     /** The directory where log files are stored. */
     logDir: string;
+    /** The name of the log file. */
+    logFile: string;
+    /** The level of logging (e.g., 'info', 'warn', 'error'). */
+    logLevel: string;
+    /**
+     * Information about the socket connection.
+     * @see SocketInfo
+     */
+    socketInfo: SocketInfo;
 }
 
 /**
@@ -58,6 +70,41 @@ export interface DiagnosticsInfo {
     cpuUsage: NodeJS.CpuUsage;
     /** Environment variables of the Node.js process. */
     envVariables: { [key: string]: string | undefined };
+}
+
+/**
+ * Type alias representing the level of data capture for instrumentation.
+ *
+ * - 'none': No data capture is performed.
+ * - 'minimal': Only essential data is captured, such as basic metrics and error logs.
+ * - 'full': All available data is captured, including detailed metrics, logs,
+ * and possibly sensitive information.
+ */
+export type CaptureLevel = 'none' | 'minimal' | 'full';
+
+/**
+ * Interface representing the instrumentation information.
+ */
+export interface InstrumentationInfo {
+    /** Determines if instrumentation is enabled. */
+    enabled: boolean;
+    /**
+     * The level of data capture for instrumentation.
+     * @see CaptureLevel
+     */
+    dataCaptureLevel: CaptureLevel;
+}
+
+/**
+ * Interface representing socket connection information.
+ */
+export interface SocketInfo {
+    /** The port number for the socket connection. */
+    port: number;
+    /** The host address for the socket connection. */
+    host: string;
+    /** The protocol number for the socket connection. */
+    protocol: number;
 }
 
 /**
@@ -83,6 +130,8 @@ export interface Config extends Map<string, string> {
      * @see AppInfo
      */
     readonly appInfo: AppInfo;
+    /** Returns the command-line arguments passed to the Node.js process. */
+    readonly args: Array<string>;
     /**
      * The debug information.
      * @see DebugInfo
@@ -98,4 +147,111 @@ export interface Config extends Map<string, string> {
      * @see DiagnosticsInfo
      */
     readonly diagnostics: DiagnosticsInfo;
+    /**
+     * **Development**
+     *
+     * `Development environment`.
+     *
+     * The development environment (dev) is the environment in which
+     * changes to software are developed, most simply an individual
+     * developer's workstation.
+     *
+     * This differs from the ultimate target environment in various ways –
+     * the target may not be a desktop computer (it may be a smartphone,
+     * embedded system, headless machine in a data center, etc.),
+     * and even if otherwise similar, the developer's environment will include
+     * development tools like a compiler, integrated development environment,
+     * different or additional versions of libraries and support software, etc.,
+     * which are not present in a user's environment.
+     * @see Deployment
+     */
+    readonly isDev: boolean;
+    /**
+     * **Local**
+     *
+     * `Local environment`
+     *
+     * The local environment is the developer's desktop or workstation.
+     *
+     * This is where the developer writes code, runs unit tests, and
+     * debugs the application.
+     *
+     * The local environment is not shared with other developers or
+     * users and is not accessible from the internet.
+     *
+     * This language is particularly suited for server programs, where
+     * servers run in a remote data center; for code that runs on an end
+     * user's device, such as applications (apps) or clients, one can refer
+     * to the user environment (USER) or local environment (LOCAL) instead.
+     * @see Deployment
+     */
+    readonly isLocal: boolean;
+    /**
+     * **Production**
+     *
+     * `Production support`
+     *
+     * The production environment is also known as live, particularly for
+     * servers, as it is the environment that users directly interact with.
+     *
+     * Deploying to production is the most sensitive step; it may be done
+     * by deploying new code directly (overwriting old code, so only one
+     * copy is present at a time), or by deploying a configuration change.
+     *
+     * This can take various forms: deploying a parallel installation of a
+     * new version of code, and switching between them with a configuration
+     * change; deploying a new version of code with the old behavior and
+     * a feature flag, and switching to the new behavior with a configuration
+     * change that performs a flag flip; or by deploying separate servers
+     * (one running the old code, one the new) and redirecting traffic from
+     * old to new with a configuration change at the traffic routing level.
+     *
+     * These in turn may be done all at once or gradually, in phases.
+     * @see Deployment
+     */
+    readonly isProd: boolean;
+    /**
+     * **Staging**
+     *
+     * `Staging environment`
+     *
+     * A stage, staging or pre-production environment is an environment
+     * for testing that exactly resembles a production environment.
+     *
+     * It seeks to mirror an actual production environment as closely as
+     * possible and may connect to other production services and data,
+     * such as databases.
+     *
+     * The primary use of a staging environment is to test all the
+     * installation/configuration/migration scripts and procedures before
+     * they're applied to a production environment.
+     *
+     * This ensures all major and minor upgrades to a production environment
+     * are completed reliably, without errors, and in a minimum of time.
+     * @see Deployment
+     */
+    readonly isStage: boolean;
+    /**
+     * **Testing**
+     *
+     * `Test environment management`
+     *
+     * The purpose of the test environment is to allow human testers to
+     * exercise new and changed code via either automated checks or
+     * non-automated techniques.
+     *
+     * After the developer accepts the new code and configurations through
+     * unit testing in the development environment, the items are moved
+     * to one or more test environments.
+     *
+     * Upon test failure, the test environment can remove the faulty code
+     * from the test platforms, contact the responsible developer, and
+     * provide detailed test and result logs.
+     *
+     * If all tests pass, the test environment or a continuous integration
+     * framework controlling the tests can automatically promote the code
+     * to the next deployment environment.
+     * @see Deployment
+     */
+    readonly isTest: boolean;
 }

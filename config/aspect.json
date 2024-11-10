@@ -12,7 +12,8 @@
   "debug": {
     "debugPort": 5858,
     "logLevel": "info",
-    "logFile": "logs/app.log",
+    "logDir": "logs",
+    "logFile": "app.log",
     "socket": {
       "port": 6000,
       "host": "localhost",

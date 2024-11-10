@@ -12,13 +12,14 @@
  */
 
 import { createServer, Server, Socket } from 'net';
-import { Request, Response, ErrorObject, ErrorCode } from '@ornorm/aspectT';
+import {Request, Response, ErrorObject, ErrorCode, Log} from '@ornorm/aspectT';
 
 /**
  * Class representing an instrumentation server that handles
  * ``JSON-RPC` 2.0` requests.
  */
-export class Instrumentation {
+export class RemoteObject {
+    private static TAG: string = 'RemoteObject';
     private server: Server;
     private readonly port: number;
     private readonly proxy: any;
@@ -37,12 +38,16 @@ export class Instrumentation {
         this.server = createServer(this.handleConnection.bind(this));
     }
 
+    public get debugPort(): number {
+        return this.port;
+    }
+
     /**
      * Start the instrumentation server.
      */
     public start(): void {
         this.server.listen(this.port, (): void => {
-            console.log(`Instrumentation server listening on port ${this.port}`);
+            Log.i(RemoteObject.TAG, `Instrumentation server listening on port ${this.port}`);
         });
     }
 
@@ -51,7 +56,7 @@ export class Instrumentation {
      */
     public stop(): void {
         this.server.close((): void => {
-            console.log(`Instrumentation server stopped`);
+            Log.i(RemoteObject.TAG, `Instrumentation server stopped`);
         });
         this.revoke();
     }
@@ -67,7 +72,7 @@ export class Instrumentation {
         });
 
         socket.on('end', (): void => {
-            console.log('Client disconnected');
+            Log.i(RemoteObject.TAG, 'Client disconnected');
         });
 
         socket.on('error', (err: Error): void => {
@@ -104,7 +109,7 @@ export class Instrumentation {
         if (requests.length === 0) {
             this.sendErrorResponse(socket, ErrorCode.InvalidRequest, 'Invalid Request');
         } else {
-            const responses: Array<Response> = requests.map((req) => {
+            const responses: Array<Response> = requests.map((req: Request) => {
                 if (!this.isValidRequest(req)) {
                     return this.createErrorResponse(ErrorCode.InvalidRequest, 'Invalid Request');
                 }
@@ -137,7 +142,7 @@ export class Instrumentation {
      * @see Socket
      */
     private handleParseError(socket: Socket, error: any): void {
-        console.error('Error handling request:', error);
+        Log.e(RemoteObject.TAG, 'Error handling request:', error);
         this.sendErrorResponse(socket, ErrorCode.ParseError, 'Parse error', error.message);
     }
 
@@ -149,7 +154,7 @@ export class Instrumentation {
      * @see Error
      */
     private handleSocketError(socket: Socket, error: Error): void {
-        console.error('Socket error:', error);
+        Log.e(RemoteObject.TAG, 'Socket error:', error);
         this.sendErrorResponse(socket, -32000, 'Socket error', error.message);
     }
 
@@ -255,56 +260,56 @@ export class Instrumentation {
     private createHandler(): ProxyHandler<any> {
         return {
             apply: (target: Function, thisArg: any, argumentsList: Array<any>): any => {
-                console.log(`apply called with args: ${argumentsList}`);
+                Log.i(RemoteObject.TAG, `apply called with args: ${argumentsList}`);
                 return Reflect.apply(target, thisArg, argumentsList);
             },
             construct: (target: any, args: Array<any>, newTarget: Function): any => {
-                console.log(`construct called with args: ${args}`);
+                Log.i(RemoteObject.TAG, `construct called with args: ${args}`);
                 return Reflect.construct(target, args, newTarget);
             },
             defineProperty: (target: any, prop: PropertyKey, descriptor: PropertyDescriptor): boolean => {
-                console.log(`defineProperty called for prop: ${String(prop)}`);
+                Log.i(RemoteObject.TAG, `defineProperty called for prop: ${String(prop)}`);
                 return Reflect.defineProperty(target, prop, descriptor);
             },
             deleteProperty: (target: any, prop: PropertyKey): boolean => {
-                console.log(`deleteProperty called for prop: ${String(prop)}`);
+                Log.i(RemoteObject.TAG, `deleteProperty called for prop: ${String(prop)}`);
                 return Reflect.deleteProperty(target, prop);
             },
             get: (target: any, prop: PropertyKey, receiver: any): any => {
-                console.log(`get called for prop: ${String(prop)}`);
+                Log.i(RemoteObject.TAG, `get called for prop: ${String(prop)}`);
                 return Reflect.get(target, prop, receiver);
             },
             getOwnPropertyDescriptor: (target: any, prop: PropertyKey): PropertyDescriptor | undefined => {
-                console.log(`getOwnPropertyDescriptor called for prop: ${String(prop)}`);
+                Log.i(RemoteObject.TAG, `getOwnPropertyDescriptor called for prop: ${String(prop)}`);
                 return Reflect.getOwnPropertyDescriptor(target, prop);
             },
             getPrototypeOf: (target: any): object | null => {
-                console.log(`getPrototypeOf called`);
+                Log.i(RemoteObject.TAG, `getPrototypeOf called`);
                 return Reflect.getPrototypeOf(target);
             },
             has: (target: any, prop: PropertyKey): boolean => {
-                console.log(`has called for prop: ${String(prop)}`);
+                Log.i(RemoteObject.TAG, `has called for prop: ${String(prop)}`);
                 return Reflect.has(target, prop);
             },
             isExtensible: (target: any): boolean => {
-                console.log(`isExtensible called`);
+                Log.i(RemoteObject.TAG, `isExtensible called`);
                 return Reflect.isExtensible(target);
             },
             ownKeys: (target: any): ArrayLike<string | symbol> => {
-                console.log(`ownKeys called`);
+                Log.i(RemoteObject.TAG, `ownKeys called`);
                 return Reflect.ownKeys(target).filter((key: string | symbol) =>
                     typeof key === 'string' || typeof key === 'symbol');
             },
             preventExtensions: (target: any): boolean => {
-                console.log(`preventExtensions called`);
+                Log.i(RemoteObject.TAG, `preventExtensions called`);
                 return Reflect.preventExtensions(target);
             },
             set: (target: any, prop: PropertyKey, value: any, receiver: any): boolean => {
-                console.log(`set called for prop: ${String(prop)} with value: ${value}`);
+                Log.i(RemoteObject.TAG, `set called for prop: ${String(prop)} with value: ${value}`);
                 return Reflect.set(target, prop, value, receiver);
             },
             setPrototypeOf: (target: any, proto: any): boolean => {
-                console.log(`setPrototypeOf called`);
+                Log.i(RemoteObject.TAG, `setPrototypeOf called`);
                 return Reflect.setPrototypeOf(target, proto);
             }
         };

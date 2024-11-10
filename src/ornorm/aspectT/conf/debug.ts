@@ -1,11 +1,6 @@
-import {AppInfo, Config, Deployment, DiagnosticsInfo} from '@ornorm/aspectT';
+import {AppInfo, Config, DebugInfo, Deployment, DiagnosticsInfo, SystemInfo} from '@ornorm/aspectT';
 import {readFileSync} from 'fs';
 import {join} from 'path';
-
-// Load package.json to get author and version
-const packageJson: any = JSON.parse(
-    readFileSync(join(__dirname, '../../../../package.json'), 'utf8')
-);
 
 let INSTANCE: any;
 
@@ -26,7 +21,9 @@ let INSTANCE: any;
  * @see Config
  */
 export class Debug implements Config {
+    private static CONFIG_FILE: string = 'aspect.json';
     private readonly envMap: Map<string, string>;
+    private readonly config: Config;
 
     /**
      * Sole constructor of the `Debug` class.
@@ -35,7 +32,55 @@ export class Debug implements Config {
      * The constructor is private to prevent instantiation of the class.
      */
     private constructor() {
-        this.envMap = new Map<string, string>(Object.entries(process.env as { [key: string]: string }));
+        this.envMap = new Map<string, string>(
+            Object.entries(process.env as { [key: string]: string })
+        );
+        const configPath: string = join(process.cwd(), Debug.CONFIG_FILE);
+        this.config = JSON.parse(readFileSync(configPath, 'utf8'));
+    }
+
+    /**
+     * Returns a new `Debug` instance.
+     *
+     * @returns A new `Env` implementation.
+     * @see Config
+     */
+    public static get env(): Config {
+        if (!INSTANCE) {
+            INSTANCE = new Debug();
+        }
+        return INSTANCE;
+    }
+
+    /**
+     * The application information.
+     * @see AppInfo
+     */
+    public get appInfo(): AppInfo {
+        return this.config.appInfo;
+    }
+
+    /**
+     * Returns the command-line arguments passed to the Node.js process.
+     */
+    public get args(): Array<string> {
+        return process.argv;
+    }
+
+    /**
+     * The debug information.
+     * @see DebugInfo
+     */
+    public get debugInfo(): DebugInfo {
+        return this.config.debugInfo;
+    }
+
+    /**
+     * Gets the current environment.
+     * @see Deployment
+     */
+    public get deployment(): Deployment {
+        return this.config.deployment;
     }
 
     /**
@@ -56,7 +101,7 @@ export class Debug implements Config {
      * which are not present in a user's environment.
      * @see Deployment
      */
-    public static get isDev(): boolean {
+    public get isDev(): boolean {
         return this.deployment === 'dev';
     }
 
@@ -79,7 +124,7 @@ export class Debug implements Config {
      * to the user environment (USER) or local environment (LOCAL) instead.
      * @see Deployment
      */
-    public static get isLocal(): boolean {
+    public get isLocal(): boolean {
         const hostname: string = process.env.HOSTNAME || '';
         const privateIpRanges: Array<RegExp> = [
             /^127\./, // Loopback addresses
@@ -115,7 +160,7 @@ export class Debug implements Config {
      * These in turn may be done all at once or gradually, in phases.
      * @see Deployment
      */
-    public static get isProd(): boolean {
+    public get isProd(): boolean {
         return this.deployment === 'prod';
     }
 
@@ -139,7 +184,7 @@ export class Debug implements Config {
      * are completed reliably, without errors, and in a minimum of time.
      * @see Deployment
      */
-    public static get isStage(): boolean {
+    public get isStage(): boolean {
         return this.deployment === 'stage';
     }
 
@@ -165,21 +210,8 @@ export class Debug implements Config {
      * to the next deployment environment.
      * @see Deployment
      */
-    public static get isTest(): boolean {
+    public get isTest(): boolean {
         return this.deployment === 'test';
-    }
-
-    /**
-     * Gets information about the environment of the project.
-     * @see SystemInfo
-     */
-    public static get systemInfo(): SystemInfo {
-        return {
-            memoryUsage: process.memoryUsage(),
-            uptime: process.uptime(),
-            platform: process.platform,
-            nodeVersion: process.version
-        };
     }
 
     /**
@@ -191,32 +223,16 @@ export class Debug implements Config {
     }
 
     /**
-     * Returns a new `Debug` instance.
-     *
-     * @returns A new `Env` implementation.
-     * @see Config
+     * Gets information about the environment of the project.
+     * @see SystemInfo
      */
-    public static get env(): Config {
-        if (!INSTANCE) {
-            INSTANCE = new Debug();
-        }
-        return INSTANCE;
-    }
-
-    /**
-     * The application information.
-     * @see AppInfo
-     */
-    public get appAppInfo(): AppInfo {
-        return Debug.env.appInfo;
-    }
-
-    /**
-     * Gets the current environment mode.
-     * @see Deployment
-     */
-    public get deployment(): Deployment {
-        return Debug.env.deployment;
+    public get systemInfo(): SystemInfo {
+        return {
+            memoryUsage: process.memoryUsage(),
+            uptime: process.uptime(),
+            platform: process.platform,
+            nodeVersion: process.version
+        };
     }
 
     /**
