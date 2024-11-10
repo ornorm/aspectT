@@ -12,42 +12,48 @@
  */
 
 import { createServer, Server, Socket } from 'net';
-import {Request, Response, ErrorObject, ErrorCode, Log} from '@ornorm/aspectT';
+import {
+    Request, Response, ErrorObject, ErrorCode, Log, Debug, SocketInfo
+} from '@ornorm/aspectT';
 
 /**
  * Class representing an instrumentation server that handles
- * ``JSON-RPC` 2.0` requests.
+ * `JSON-RPC 2.0` requests.
  */
 export class RemoteObject {
     private static TAG: string = 'RemoteObject';
     private server: Server;
-    private readonly port: number;
     private readonly proxy: any;
     private readonly revoke: () => void;
 
     /**
-     * Create an instrumentation server.
+     * Create an instrumentation remote object server.
      * @param target - The target object to be proxied.
      * @param port - The port number on which the server will listen.
      */
-    constructor(target: any, port: number) {
-        this.port = port;
+    constructor(target: any) {
         const { proxy, revoke } = Proxy.revocable(target, this.createHandler());
         this.proxy = proxy;
+        this.server = createServer(
+            this.socketInfo, this.handleConnection.bind(this)
+        );
         this.revoke = revoke;
-        this.server = createServer(this.handleConnection.bind(this));
     }
 
-    public get debugPort(): number {
-        return this.port;
+    /**
+     * Get the socket information from the debug environment.
+     * @see SocketInfo
+     */
+    public get socketInfo(): SocketInfo {
+        return Debug.env.debugInfo.socketInfo;
     }
 
     /**
      * Start the instrumentation server.
      */
     public start(): void {
-        this.server.listen(this.port, (): void => {
-            Log.i(RemoteObject.TAG, `Instrumentation server listening on port ${this.port}`);
+        this.server.listen(this.socketInfo.port, (): void => {
+            Log.i(RemoteObject.TAG, `Instrumentation server listening on port ${this.socketInfo.port}`);
         });
     }
 
@@ -57,8 +63,8 @@ export class RemoteObject {
     public stop(): void {
         this.server.close((): void => {
             Log.i(RemoteObject.TAG, `Instrumentation server stopped`);
+            this.revoke();
         });
-        this.revoke();
     }
 
     /**
@@ -70,11 +76,9 @@ export class RemoteObject {
         socket.on('data', (data: Buffer): void => {
             this.processData(socket, data);
         });
-
         socket.on('end', (): void => {
             Log.i(RemoteObject.TAG, 'Client disconnected');
         });
-
         socket.on('error', (err: Error): void => {
             this.handleSocketError(socket, err);
         });
@@ -170,9 +174,7 @@ export class RemoteObject {
         socket: Socket, code: number, message: string, data?: any
     ): void {
         const errorResponse: Response = {
-            jsonrpc: '2.0',
-            id: null,
-            error: this.createError(code, message, data)
+            jsonrpc: '2.0', id: null, error: this.createError(code, message, data)
         };
         socket.write(JSON.stringify(errorResponse));
     }
@@ -186,9 +188,7 @@ export class RemoteObject {
      */
     private createErrorResponse(code: number, message: string, data?: any): Response {
         return {
-            jsonrpc: '2.0',
-            id: null,
-            error: this.createError(code, message, data)
+            jsonrpc: '2.0', id: null, error: this.createError(code, message, data)
         };
     }
 
@@ -201,8 +201,7 @@ export class RemoteObject {
      */
     private invoke(request: Request): Response {
         const response: Response = {
-            jsonrpc: '2.0',
-            id: request.id ?? null
+            jsonrpc: '2.0', id: request.id ?? null
         };
         try {
             const propertyDescriptor: PropertyDescriptor | undefined =

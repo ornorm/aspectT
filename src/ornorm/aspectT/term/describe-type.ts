@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-inferrable-types,no-bitwise */
-import * as path from 'path';
 import {cat, ShellString, test} from 'shelljs';
 import {
     ClassDeclaration,
@@ -31,12 +29,12 @@ import {
 /**
  * Resolve type.
  */
-type Resolve<T> = (value: T | PromiseLike<T>) => void;
+export type Resolve<T> = (value: T | PromiseLike<T>) => void;
 
 /**
  * Reject type.
  */
-type Reject = (reason?: any) => void;
+export type Reject = (reason?: any) => void;
 
 /**
  * Hide methods with namespace URI.

@@ -9,6 +9,8 @@
  * @date 2023
  */
 
+import {ListenOptions, ServerOpts} from 'net';
+
 /**
  * Type alias representing standard industry environment modes.
  */
@@ -97,14 +99,66 @@ export interface InstrumentationInfo {
 
 /**
  * Interface representing socket connection information.
+ * @see ListenOptions
  */
 export interface SocketInfo {
-    /** The port number for the socket connection. */
-    port: number;
-    /** The host address for the socket connection. */
-    host: string;
-    /** The protocol number for the socket connection. */
-    protocol: number;
+    /**
+     * The port number to listen on.
+     */
+    port?: number;
+    /**
+     * The hostname or IP address to bind to.
+     */
+    host?: string;
+    /**
+     * The maximum length of the queue of pending connections.
+     */
+    backlog?: number;
+    /**
+     * The path to a Unix domain socket.
+     */
+    path?: string;
+    /**
+     * If true, the handle is exclusive.
+     */
+    exclusive?: boolean;
+    /**
+     * If true, the socket is readable by all users.
+     */
+    readableAll?: boolean;
+    /**
+     * If true, the socket is writable by all users.
+     */
+    writableAll?: boolean;
+    /**
+     * Indicates whether half-opened TCP connections are allowed.
+     */
+    allowHalfOpen?: boolean | undefined;
+    /**
+     * Indicates whether the socket should be paused on incoming connections.
+     */
+    pauseOnConnect?: boolean | undefined;
+    /**
+     * If set to `true`, it disables the use of Nagle's algorithm immediately
+     * after a new incoming connection is received.
+     */
+    noDelay?: boolean | undefined;
+    /**
+     * If set to `true`, it enables keep-alive functionality on the socket
+     * immediately after a new incoming connection is received,
+     * similarly on what is done in `socket.setKeepAlive([enable][, initialDelay])`.
+     */
+    keepAlive?: boolean | undefined;
+    /**
+     * If set to a positive number, it sets the initial delay before the first
+     * keepalive probe is sent on an idle socket.
+     */
+    keepAliveInitialDelay?: number | undefined;
+    /**
+     * Optionally overrides all `net.Socket`s' `readableHighWaterMark`
+     * and `writableHighWaterMark`.
+     */
+    highWaterMark?: number | undefined;
 }
 
 /**

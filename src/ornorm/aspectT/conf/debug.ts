@@ -1,6 +1,12 @@
 import {AppInfo, Config, DebugInfo, Deployment, DiagnosticsInfo, SystemInfo} from '@ornorm/aspectT';
-import {readFileSync} from 'fs';
-import {join} from 'path';
+import {existsSync, readFileSync} from 'fs';
+import {dirname, join} from 'path';
+
+/**
+ * The path of the config.
+ */
+export const DEBUG_CONFIG_PATH: string = 'config';
+
 
 let INSTANCE: any;
 
@@ -21,6 +27,7 @@ let INSTANCE: any;
  * @see Config
  */
 export class Debug implements Config {
+
     private static CONFIG_FILE: string = 'aspect.json';
     private readonly envMap: Map<string, string>;
     private readonly config: Config;
@@ -35,7 +42,10 @@ export class Debug implements Config {
         this.envMap = new Map<string, string>(
             Object.entries(process.env as { [key: string]: string })
         );
-        const configPath: string = join(process.cwd(), Debug.CONFIG_FILE);
+        const projectRoot: string = this.findNodeModulesRoot(process.cwd());
+        const configPath: string = join(
+            projectRoot, DEBUG_CONFIG_PATH, Debug.CONFIG_FILE
+        );
         this.config = JSON.parse(readFileSync(configPath, 'utf8'));
     }
 
@@ -385,4 +395,23 @@ export class Debug implements Config {
      * @returns The default iterator for the map.
      */
     [Symbol.toStringTag]: string = 'Debug';
+
+    /**
+     * Finds the root directory containing the `node_modules` folder.
+     *
+     * @param startPath - The starting path to begin the search.
+     * @returns The path to the root directory containing the `node_modules` folder.
+     * @throws ReferenceError if the `node_modules` directory is not found.
+     */
+    protected findNodeModulesRoot(startPath: string): string {
+        let currentPath: string = startPath;
+        while (!existsSync(join(currentPath, 'node_modules'))) {
+            let parentPath: string = dirname(currentPath);
+            if (parentPath === currentPath) {
+                throw new ReferenceError('node_modules directory not found');
+            }
+            currentPath = parentPath;
+        }
+        return currentPath;
+    }
 }
