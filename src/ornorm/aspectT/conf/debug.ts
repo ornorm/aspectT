@@ -1,51 +1,11 @@
+import {AppInfo, Config, Deployment, DiagnosticsInfo} from '@ornorm/aspectT';
 import {readFileSync} from 'fs';
 import {join} from 'path';
-
-/**
- * Type alias representing standard industry environment modes.
- */
-export type Deployment = 'local' | 'dev' | 'test' | 'stage' | 'prod';
 
 // Load package.json to get author and version
 const packageJson: any = JSON.parse(
     readFileSync(join(__dirname, '../../../../package.json'), 'utf8')
 );
-
-export interface Env extends Map<string, string> {
-
-}
-
-/**
- * Interface representing detailed diagnostics information of the running system environment.
- */
-export interface DiagnosticsInfo {
-    /** Memory usage statistics of the Node.js process. */
-    memoryUsage: NodeJS.MemoryUsage;
-    /** Uptime of the Node.js process in seconds. */
-    uptime: number;
-    /** Platform the Node.js process is running on. */
-    platform: string;
-    /** Version of Node.js running the process. */
-    nodeVersion: string;
-    /** CPU usage statistics of the Node.js process. */
-    cpuUsage: NodeJS.CpuUsage;
-    /** Environment variables of the Node.js process. */
-    envVariables: { [key: string]: string | undefined };
-}
-
-/**
- * Interface representing system information of the running environment.
- */
-interface SystemInfo {
-    /** Memory usage statistics of the Node.js process. */
-    memoryUsage: NodeJS.MemoryUsage;
-    /** Uptime of the Node.js process in seconds. */
-    uptime: number;
-    /** Platform the Node.js process is running on. */
-    platform: string;
-    /** Version of Node.js running the process. */
-    nodeVersion: string;
-}
 
 let INSTANCE: any;
 
@@ -63,9 +23,9 @@ let INSTANCE: any;
  * | **Staging / Stage / Model / Pre-production / External-client acceptance / Demo** | Mirror of production environment                                                                                 |
  * | **Production / Live**                            | Serves end-users/clients                                                                                         |
  *
- * @see Env
+ * @see Config
  */
-export class Debug implements Env {
+export class Debug implements Config {
     private readonly envMap: Map<string, string>;
 
     /**
@@ -76,75 +36,6 @@ export class Debug implements Env {
      */
     private constructor() {
         this.envMap = new Map<string, string>(Object.entries(process.env as { [key: string]: string }));
-    }
-
-    /**
-     * Gets the `description` field of this application.
-     */
-    public static get appDescription(): string {
-        return packageJson.description;
-    }
-
-    /**
-     * Gets the `main` entry point of the application.
-     */
-    public static get appMain(): string {
-        return packageJson.main;
-    }
-
-    /**
-     * Gets the `name` of the application or development `codename`.
-     */
-    public static get appName(): string {
-        return packageJson.name;
-    }
-
-        /**
-         * Gets the `user agent` string in the format:
-         *
-         * `User-Agent: <product> / <product-version> <comment>`
-         *
-         * - `product` - The name of the application.
-         * - `product-version` - The version of the application (0.0.0).
-         * - `comment` - (platform; rv) of the running node.
-         * - `description` - The description of the application.
-         */
-    public static get appUserAgent(): string {
-        return `${this.appName}/${this.appVersion} (${process.platform}; rv:${process.version}) ${this.appDescription} ${this.appMain}`;
-    }
-
-    /**
-     * Gets the version of the application from the package.json file.
-     */
-    public static get appVersion(): string {
-        return packageJson.version;
-    }
-
-    /**
-     * Gets the current environment mode.
-     * @see Deployment
-     */
-    public static get deployment(): Deployment {
-        return process.env.NODE_ENV as Deployment || 'local';
-    }
-
-    public static set deployment(mode: Deployment) {
-        process.env.NODE_ENV = mode;
-    }
-
-    /**
-     * Gets detailed diagnostics of the running system environment.
-     * @see DiagnosticsInfo
-     */
-    public static get diagnostics(): DiagnosticsInfo {
-        return {
-            memoryUsage: process.memoryUsage(),
-            uptime: process.uptime(),
-            platform: process.platform,
-            nodeVersion: process.version,
-            cpuUsage: process.cpuUsage(),
-            envVariables: process.env
-        };
     }
 
     /**
@@ -303,13 +194,44 @@ export class Debug implements Env {
      * Returns a new `Debug` instance.
      *
      * @returns A new `Env` implementation.
-     * @see Env
+     * @see Config
      */
-    public static env(): Env {
+    public static get env(): Config {
         if (!INSTANCE) {
             INSTANCE = new Debug();
         }
         return INSTANCE;
+    }
+
+    /**
+     * The application information.
+     * @see AppInfo
+     */
+    public get appAppInfo(): AppInfo {
+        return Debug.env.appInfo;
+    }
+
+    /**
+     * Gets the current environment mode.
+     * @see Deployment
+     */
+    public get deployment(): Deployment {
+        return Debug.env.deployment;
+    }
+
+    /**
+     * Gets detailed diagnostics of the running system environment.
+     * @see DiagnosticsInfo
+     */
+    public get diagnostics(): DiagnosticsInfo {
+        return {
+            memoryUsage: process.memoryUsage(),
+            uptime: process.uptime(),
+            platform: process.platform,
+            nodeVersion: process.version,
+            cpuUsage: process.cpuUsage(),
+            envVariables: process.env
+        };
     }
 
     /**

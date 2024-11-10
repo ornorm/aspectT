@@ -21,5 +21,5 @@
     }
   },
   "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["dist", "docs", "node_modules"]
+  "exclude": ["config", "dist", "docs", "logs", "node_modules"]
 }
