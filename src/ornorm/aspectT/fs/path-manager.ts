@@ -1,84 +1,431 @@
-import {Log} from '@ornorm';
-import { existsSync, readFileSync } from 'fs';
-import { join, dirname, resolve } from 'path';
+/**
+ * @file path-manager.ts
+ * @description This file contains the path manager implementation for the AspectT project.
+ * @license MIT
+ *
+ * @autor Aimé Biendo
+ * @contact abiendo@gmail.com
+ *
+ * @date 2023
+ */
 
+import {FileObject, FilePath} from '@ornorm/aspectT';
+import {existsSync} from 'fs';
+import {dirname, join} from 'path';
+
+let mgr: any;
+
+/**
+ * Manages the paths and directories of a project.
+ *
+ * The `PathManager` class provides methods to manage and retrieve paths
+ * and directories within a project.
+ *
+ * It follows the singleton pattern to ensure only one instance is created.
+ */
 export class PathManager {
-    public static readonly PROPERTIES_FILE: string = 'idea.properties.file';
-    public static readonly PROPERTIES_FILE_NAME: string = 'idea.properties';
-    public static readonly PROPERTY_HOME_PATH: string = 'idea.home.path';
-    public static readonly PROPERTY_CONFIG_PATH: string = 'idea.config.path';
-    public static readonly PROPERTY_SYSTEM_PATH: string = 'idea.system.path';
-    public static readonly PROPERTY_SCRATCH_PATH: string = 'idea.scratch.path';
-    public static readonly PROPERTY_PLUGINS_PATH: string = 'idea.plugins.path';
-    public static readonly PROPERTY_LOG_PATH: string = 'idea.log.path';
-    public static readonly PROPERTY_LOG_CONFIG_FILE: string = 'idea.log.config.properties.file';
-    public static readonly PROPERTY_PATHS_SELECTOR: string = 'idea.paths.selector';
-    public static readonly SYSTEM_PATHS_CUSTOMIZER: string = 'idea.paths.customizer';
+    private readonly projectLayout: Map<string, FilePath> = new Map<string, FilePath>();
 
-    public static readonly OPTIONS_DIRECTORY: string = 'options';
-    public static readonly DEFAULT_EXT: string = '.json';
+    /* DEFAULT PROJECT DIRECTORIES */
 
-    private static readonly PROPERTY_HOME: string = 'idea.home';
-    private static readonly PROPERTY_VENDOR_NAME: string = 'idea.vendor.name';
-
-    private static readonly JRE_DIRECTORY: string = 'jbr';
-    private static readonly LIB_DIRECTORY: string = 'libs';
-    private static readonly PLUGINS_DIRECTORY: string = 'plugins';
-    private static readonly BIN_DIRECTORY: string = 'bin';
-    private static readonly LOG_DIRECTORY: string = 'logs';
-    private static readonly CONFIG_DIRECTORY: string = 'config';
-    private static readonly SYSTEM_DIRECTORY: string = 'system';
-    private static readonly COMMUNITY_MARKER: string = 'intellij.idea.community.main.iml';
-    private static readonly ULTIMATE_MARKER: string = '.ultimate.root.marker';
-    private static readonly PRODUCT_INFO_JSON: string = 'product-info.json';
+    /**
+     * The source directory name.
+     */
+    public static readonly SRC_DIRECTORY: string = 'src';
+    /**
+     * The libraries directory name.
+     */
+    public static readonly LIBS_DIRECTORY: string = 'libs';
+    /**
+     * The plugins directory name.
+     */
+    public static readonly PLUGINS_DIRECTORY: string = 'plugins';
+    /**
+     * The binary files directory name.
+     */
+    public static readonly BIN_DIRECTORY: string = 'bin';
+    /**
+     * The logs directory name.
+     */
+    public static readonly LOGS_DIRECTORY: string = 'logs';
+    /**
+     * The configuration files directory name.
+     */
+    public static readonly CONFIG_DIRECTORY: string = 'config';
+    /**
+     * The distribution files directory name.
+     */
+    public static readonly DIST_DIRECTORY: string = 'dist';
+    /**
+     * The documentation files directory name.
+     */
+    public static readonly DOCS_DIRECTORY: string = 'docs';
+    /**
+     * The test files directory name.
+     */
+    public static readonly TESTS_DIRECTORY: string = 'test';
 
     private static readonly TAG: string = 'PathManager';
 
-    private static ourHomePath: string | null = null;
-    private static ourBinDirectories: Array<string> | null = null;
-    private static ourCommonDataPath: string | null = null;
-    private static ourPathSelector: string | null =
-        process.env[PathManager.PROPERTY_PATHS_SELECTOR] || null;
-    private static ourConfigPath: string | null = null;
-    private static ourSystemPath: string | null = null;
-    private static ourScratchPath: string | null = null;
-    private static ourPluginPath: string | null = null;
-    private static ourLogPath: string | null = null;
-    private static ourStartupScriptDir: string | null = null;
-    private static ourOriginalConfigDir: string | null = null;
-    private static ourOriginalSystemDir: string | null = null;
-    private static ourOriginalLogDir: string | null = null;
-    private static ourArchivedCompiledClassesMapping: { [key: string]: string } | null = null;
+    private readonly homePath: string;
 
     /**
-     * Bin path may be not what you want when developing an IDE.
+     * Sole constructor.
      *
-     * Consider using {@link findBinFile} if applicable.
+     * (For invocation by subclass constructors, typically implicit.)
      */
-    public static get binPath(): string {
-        return `${PathManager.homePath}/${PathManager.BIN_DIRECTORY}`;
+    protected constructor() {
+        this.homePath = this.findNodeModulesRoot(process.cwd());
     }
 
-    public static findBinFile(fileName: string): string | null {
-        for (Path binDir : getBinDirectories()) {
-            Path candidate = binDir.resolve(fileName);
-            if (Files.isRegularFile(candidate)) {
-                return candidate;
-            }
+    /**
+     * Returns an instance of `PathManager`.
+     *
+     * This method ensures that only one instance of `PathManager` is
+     * created (singleton pattern).
+     *
+     * If an instance already exists, it returns the existing instance; otherwise,
+     * it creates a new one.
+     *
+     * @returns The singleton instance of `PathManager`.
+     * @see PathManager
+     */
+    public static get(): PathManager {
+        if (!mgr) {
+            mgr = new PathManager();
         }
-        return null;
+        return mgr;
     }
 
-    public static get homePath(): string {
-        return PathManager.getHomePathInternal();
+    /**
+     * Returns the path to the `bin` directory.
+     * @see FilePath
+     */
+    public get binDir(): FilePath | undefined {
+        if (!this.hasDir(PathManager.BIN_DIRECTORY) && this.homeDir) {
+            this.mapDir(PathManager.BIN_DIRECTORY, this.homeDir.resolve(PathManager.BIN_DIRECTORY));
+        }
+        return this.getDir(PathManager.BIN_DIRECTORY);
     }
 
+    /**
+     * Returns an array of `FilePath` objects representing the binary files.
+     *
+     * This method lists all the paths in the `bin` directory and returns them
+     * as an array of `FilePath` objects.
+     *
+     * @returns An array of `FilePath` objects representing the binary files.
+     * @see FilePath
+     */
+    public get binFiles(): Array<FilePath> {
+        return this.binDir ? FileObject.listPaths(this.binDir) : [];
+    }
+
+    /**
+     *  Returns the path to the `config` directory.
+     *  @see FilePath
+     */
+    public get configDir(): FilePath | undefined {
+        if (!this.hasDir(PathManager.CONFIG_DIRECTORY) && this.homeDir) {
+            this.mapDir(PathManager.CONFIG_DIRECTORY, this.homeDir.resolve(PathManager.CONFIG_DIRECTORY));
+        }
+        return this.getDir(PathManager.CONFIG_DIRECTORY);
+    }
+
+    /**
+     * Returns an array of `FilePath` objects representing the configuration files.
+     *
+     * This method lists all the paths in the `config` directory and returns them
+     * as an array of `FilePath` objects.
+     *
+     * @returns An array of `FilePath` objects representing the configuration files.
+     * @see FilePath
+     */
+    public get configFiles(): Array<FilePath> {
+        return this.configDir ? FileObject.listPaths(this.configDir) : [];
+    }
+
+    /**
+     * Returns the path to the `dist` directory.
+     * @see FilePath
+     */
+    public get distDir(): FilePath | undefined {
+        if (!this.hasDir(PathManager.DIST_DIRECTORY) && this.homeDir) {
+            this.mapDir(PathManager.DIST_DIRECTORY, this.homeDir.resolve(PathManager.DIST_DIRECTORY));
+        }
+        return this.getDir(PathManager.DIST_DIRECTORY);
+    }
+
+    /**
+     * Returns an array of `FilePath` objects representing the distribution files.
+     *
+     * This method lists all the paths in the `dist` directory and returns them
+     * as an array of `FilePath` objects.
+     *
+     * @returns An array of `FilePath` objects representing the distribution files.
+     * @see FilePath
+     */
+    public get distFiles(): Array<FilePath> {
+        return this.distDir ? FileObject.listPaths(this.distDir) : [];
+    }
+
+    /**
+     *  Returns the path to the `docs` directory.
+     *  @see FilePath
+     */
+    public get docsDir(): FilePath | undefined {
+        if (!this.hasDir(PathManager.DOCS_DIRECTORY) && this.homeDir) {
+            this.mapDir(PathManager.DOCS_DIRECTORY, this.homeDir.resolve(PathManager.DOCS_DIRECTORY));
+        }
+        return this.getDir(PathManager.DOCS_DIRECTORY);
+    }
+
+    /**
+     * Returns an array of `FilePath` objects representing the documentation files.
+     *
+     * This method lists all the paths in the `docs` directory and returns them
+     * as an array of `FilePath` objects.
+     *
+     * @returns An array of `FilePath` objects representing the documentation files.
+     * @see FilePath
+     */
+    public get docsFiles(): Array<FilePath> {
+        return this.docsDir ? FileObject.listPaths(this.docsDir) : [];
+    }
+
+    /**
+     * Returns the path to the root directory containing the `node_modules`
+     * folder.
+     * @see FilePath
+     */
+    public get homeDir(): FilePath | undefined {
+        if (!this.hasDir(this.homePath)) {
+            this.mapDir(this.homePath, FileObject.filePath(this.homePath));
+        }
+        return this.getDir(this.homePath);
+    }
+
+    /**
+     * Returns an array of `FilePath` objects representing the home files.
+     *
+     * This method lists all the paths in the home directory and returns them
+     * as an array of `FilePath` objects.
+     *
+     * @returns An array of `FilePath` objects representing the home files.
+     * @see FilePath
+     */
+    public get homeFiles(): Array<FilePath> {
+        return this.homeDir ? FileObject.listPaths(this.homeDir) : [];
+    }
+
+    /**
+     * Returns the path to the `libs` directory.
+     * @see FilePath
+     */
+    public get libsDir(): FilePath | undefined {
+        if (!this.hasDir(PathManager.LIBS_DIRECTORY) && this.homeDir) {
+            this.mapDir(PathManager.LIBS_DIRECTORY, this.homeDir.resolve(PathManager.LIBS_DIRECTORY));
+        }
+        return this.getDir(PathManager.LIBS_DIRECTORY);
+    }
+
+    /**
+     * Returns an array of `FilePath` objects representing the library files.
+     *
+     *  This method lists all the paths in the `libs` directory and returns them
+     *  as an array of `FilePath` objects.
+     *
+     *  @returns An array of `FilePath` objects representing the library files.
+     *  @see FilePath
+     */
+    public get libsFiles(): Array<FilePath> {
+        return this.libsDir ? FileObject.listPaths(this.libsDir) : [];
+    }
+
+    /**
+     * Returns the path to the `logs` directory.
+     * @see FilePath
+     */
+    public get logsDir(): FilePath | undefined  {
+        if (!this.hasDir(PathManager.LOGS_DIRECTORY) && this.homeDir) {
+            this.mapDir(PathManager.LOGS_DIRECTORY, this.homeDir.resolve(PathManager.LOGS_DIRECTORY));
+        }
+        return this.getDir(PathManager.LOGS_DIRECTORY);
+    }
+
+    /**
+     * Returns an array of `FilePath` objects representing the log files.
+     *
+     * This method lists all the paths in the `logs` directory and returns them
+     * as an array of `FilePath` objects.
+     *
+     * @returns An array of `FilePath` objects representing the log files.
+     * @see FilePath
+     */
+    public get logsFiles(): Array<FilePath> {
+        return this.logsDir ? FileObject.listPaths(this.logsDir) : [];
+    }
+
+    /**
+     *  Returns the path to the `plugins` directory.
+     *  @see FilePath
+     */
+    public get pluginsDir(): FilePath | undefined {
+        if (!this.hasDir(PathManager.PLUGINS_DIRECTORY) && this.homeDir) {
+            this.mapDir(PathManager.PLUGINS_DIRECTORY, this.homeDir.resolve(PathManager.PLUGINS_DIRECTORY));
+        }
+        return this.getDir(PathManager.PLUGINS_DIRECTORY);
+    }
+
+    /**
+     * Returns an array of `FilePath` objects representing the plugin files.
+     *
+     * This method lists all the paths in the `plugins` directory and returns them
+     * as an array of `FilePath` objects.
+     *
+     * @returns An array of `FilePath` objects representing the plugin files.
+     * @see FilePath
+     */
+    public  get pluginsFiles(): Array<FilePath> {
+        return this.pluginsDir ? FileObject.listPaths(this.pluginsDir) : [];
+    }
+
+    /**
+     * Returns the path to the `src` directory.
+     * @see FilePath
+     */
+    public get srcDir(): FilePath | undefined {
+        if (!this.hasDir(PathManager.SRC_DIRECTORY) && this.homeDir) {
+            this.mapDir(PathManager.SRC_DIRECTORY, this.homeDir.resolve(PathManager.SRC_DIRECTORY));
+        }
+        return this.getDir(PathManager.SRC_DIRECTORY);
+    }
+
+    /**
+     * Returns an array of `FilePath` objects representing the source files.
+     *
+     * This method lists all the paths in the `src` directory and returns them
+     * as an array of `FilePath` objects.
+     *
+     * @returns An array of `FilePath` objects representing the source files.
+     * @see FilePath
+     */
+    public get srcFiles(): Array<FilePath> {
+        return this.srcDir ? FileObject.listPaths(this.srcDir) : [];
+    }
+
+    /**
+     * Returns the path to the `tests` directory.
+     * @see FilePath
+     */
+    public get testsDir(): FilePath | undefined {
+        if (!this.hasDir(PathManager.TESTS_DIRECTORY) && this.homeDir) {
+            this.mapDir(PathManager.TESTS_DIRECTORY, this.homeDir.resolve(PathManager.TESTS_DIRECTORY));
+        }
+        return this.getDir(PathManager.TESTS_DIRECTORY);
+    }
+
+    /**
+     * Returns an array of `FilePath` objects representing the test files.
+     *
+     * This method lists all the paths in the `tests` directory and returns them
+     * as an array of `FilePath` objects.
+     *
+     * @returnsAn array of `FilePath` objects representing the test files.
+     * @see FilePath
+     */
+    public get testsFiles(): Array<FilePath> {
+        return this.testsDir ? FileObject.listPaths(this.testsDir) : [];
+    }
+
+    /**
+     * Gets the mapped FilePath for a given directory.
+     * @param dir - The directory name.
+     * @returns The FilePath object for the directory.
+     */
+    public getDir(dir: string): FilePath | undefined {
+        return this.projectLayout.get(dir);
+    }
+
+    /**
+     *  Checks if a directory is mapped.
+     * @param dir - The directory name.
+     * @returns `true` if the directory is mapped; `false` otherwise.
+     */
+    public hasDir(dir: string): boolean {
+        return this.projectLayout.has(dir);
+    }
+
+    /**
+     * Maps a directory name to a specified path.
+     *
+     * This method associates a given directory name with a specified path
+     * and stores the mapping in the project layout.
+     *
+     * @param dir - The directory name to be mapped.
+     * @param path - The path to be associated with the directory name.
+     * @see FilePath
+     */
+    public mapDir(dir: string, path: FilePath): void {
+        this.projectLayout.set(dir, path);
+    }
+
+    /**
+     * Parses a string layout of a project structure and maps the structure in memory.
+     * ``` plaintext
+     *       myProject/
+     *         ├── src/
+     *         ├── libs/
+     *         ├── plugins/
+     *         ├── bin/
+     *         ├── logs/
+     *         ├── config/
+     *         ├── dist/
+     *         ├── docs/
+     *         └── test/
+     *      ```
+     * @param layout - The string layout of the project structure.
+     */
+    public fromString(layout: string): void {
+        const lines: Array<string> = layout.split('\n');
+        if (this.homeDir) {
+            const rootPath: FilePath = this.homeDir;
+            lines.forEach((line: string) => {
+                const trimmedLine: string = line.trim();
+                if (trimmedLine) {
+                    const parts: Array<string> = trimmedLine.split('/');
+                    let currentPath: FilePath = rootPath;
+                    parts.forEach((part: string) => {
+                        currentPath = currentPath.resolve(part);
+                    });
+                    this.mapDir(trimmedLine, currentPath);
+                }
+            });
+        }
+    }
+
+    /**
+     * Generates a string representation of the project layout.
+     *
+     * This method iterates over the `projectLayout` map and constructs
+     * a string representation of the project structure.
+     *
+     * @returns A string representing the project layout.
+     */
+    public toString(): string {
+        let layout: string = '';
+        this.projectLayout.forEach((path: FilePath, dir: string) => (
+            layout += `${dir}/\n`
+        ));
+        return layout;
+    }
 
     /**
      * Finds the root directory containing the `node_modules` folder.
      *
      * @param startPath - The starting path to begin the search.
-     * @returns The path to the root directory containing the `node_modules` folder.
+     * @returns The path to the root directory containing the `node_modules`
+     * folder.
      * @throws ReferenceError if the `node_modules` directory is not found.
      */
     protected findNodeModulesRoot(startPath: string): string {
@@ -91,198 +438,5 @@ export class PathManager {
             currentPath = parentPath;
         }
         return currentPath;
-    }
-
-    private static getHomePathInternal(insideIde: boolean = true): string {
-        if (PathManager.ourHomePath) {
-            return PathManager.ourHomePath;
-        }
-        let explicit: string | null =
-            PathManager.getExplicitPath(PathManager.PROPERTY_HOME_PATH) ||
-            PathManager.getExplicitPath(PathManager.PROPERTY_HOME);
-        if (explicit) {
-            if (!existsSync(explicit)) {
-                PathManager.ourHomePath = explicit;
-                throw new ReferenceError(`Invalid home path '${explicit}'`);
-            }
-            PathManager.ourHomePath = explicit;
-        } else if (insideIde) {
-            const result: string | null = PathManager.getHomePathFor(PathManager);
-            if (!result) {
-                const advice: string =
-                    process.platform === 'darwin' ?
-                        'reinstall the software.' :
-                        'make sure product-info.json is present in the installation directory.';
-                throw new ReferenceError(`Could not find installation home path. Please ${advice}`);
-            }
-            PathManager.ourHomePath = result;
-        }
-        if (PathManager.ourHomePath && process.platform === 'win32') {
-            try {
-                PathManager.ourHomePath = resolve(PathManager.ourHomePath);
-            } catch (ignored: any) {
-                Log.e('PathManager', 'Failed to resolve home path', ignored);
-            }
-        }
-
-        if (!PathManager.ourHomePath) {
-            PathManager.ourBinDirectories = [];
-        } else {
-            const root: string = resolve(PathManager.ourHomePath);
-            PathManager.ourBinDirectories = PathManager.getBinDirectories(root);
-        }
-
-        return PathManager.ourHomePath;
-    }
-
-    private static getBinDirectories(root: string): Array<string> {
-        const binDirs: Array<string> = [];
-        const candidates: Array<string> = [
-            join(root, PathManager.BIN_DIRECTORY),
-            join(PathManager.getCommunityHomePath(root), 'bin')
-        ];
-        const osSuffix: string =
-            process.platform === 'win32' ? 'win' : process.platform === 'darwin' ? 'mac' : 'linux';
-        for (let dir of candidates) {
-            if (binDirs.includes(dir) || !existsSync(dir)) {
-                continue;
-            }
-            binDirs.push(dir);
-            dir = join(dir, osSuffix);
-            if (existsSync(dir)) {
-                binDirs.push(dir);
-                if (process.platform === 'win32' || process.platform === 'linux') {
-                    const arch: string | null =
-                        process.arch === 'x64' ? 'amd64' : process.arch === 'arm64' ? 'aarch64' : null;
-                    if (arch) {
-                        dir = join(dir, arch);
-                        if (existsSync(dir)) {
-                            binDirs.push(dir);
-                        }
-                    }
-                }
-            }
-        }
-        return binDirs;
-    }
-
-    private static getExplicitPath(property: string): string | null {
-        const path: string | undefined = Reflect.get(process.env, property);
-        if (!path) {
-            return null;
-        }
-        const quoted: boolean = path.length > 1 && path.startsWith('"') && path.endsWith('"');
-        return PathManager.getAbsolutePath(quoted ? path.slice(1, -1) : path);
-    }
-
-    private static getAbsolutePath(path: string): string {
-        if (path.startsWith('~/') || path.startsWith('~\\')) {
-            path = `${process.env.HOME}${path.slice(1)}`;
-        }
-        return resolve(path);
-    }
-
-    private static getCommunityHomePath(homePath: string): string {
-        const isRunningFromSources: boolean = existsSync(join(homePath, '.idea'));
-        if (!isRunningFromSources) {
-            return homePath;
-        }
-        const possibleCommunityPaths: Array<string> = [
-            join(homePath, 'community'),
-            join(homePath, '..', '..', '..', 'community'),
-            join(homePath, '..', '..', '..', '..', 'community')
-        ];
-        for (const possibleCommunityPath of possibleCommunityPaths) {
-            if (existsSync(join(possibleCommunityPath, PathManager.COMMUNITY_MARKER))) {
-                return resolve(possibleCommunityPath);
-            }
-        }
-        return homePath;
-    }
-
-    private static getHomePathFor(aClass: any): string | null {
-        const resourceRoot: string | null =
-            PathManager.getResourceRoot(aClass, `/${aClass.name.replace(/\./g, '/')}.ts`);
-        if (!resourceRoot) {
-            return null;
-        }
-        const root: string = resolve(resourceRoot);
-        let currentRoot: string = root;
-        while (currentRoot !== dirname(currentRoot)) {
-            if (PathManager.isIdeaHome(currentRoot)) {
-                return currentRoot;
-            }
-            currentRoot = dirname(currentRoot);
-        }
-        return null;
-    }
-
-    private static getResourceRoot(context: any, path: string): string | null {
-        const url: string = context.getResource(path) || context.getResource(path.slice(1));
-        if (!url) {
-            return null;
-        }
-        return PathManager.extractRoot(url, path);
-    }
-
-    private static extractRoot(resourceURL: any, resourcePath: string): string | null {
-        if (!resourcePath.startsWith('/') && !resourcePath.startsWith('\\')) {
-            Log.e(PathManager.TAG, `precondition failed: ${resourcePath}`);
-            return null;
-        }
-        let resultPath: string | null = null;
-        const protocol: string = resourceURL.protocol;
-        if (protocol === 'file:') {
-            try {
-                const result: string = new URL(resourceURL).pathname;
-                const path: string = result.replace(/\\/g, '/');
-                const testResourcePath: string = resourcePath.replace(/\\/g, '/');
-                if (path.toLowerCase().endsWith(testResourcePath.toLowerCase())) {
-                    resultPath = path.slice(0, path.length - resourcePath.length);
-                }
-            } catch (e: any) {
-                throw new ReferenceError(
-                    `URL='${resourceURL}', path='${resourcePath}', msg: ${e.message}`
-                );
-            }
-        } else if (protocol === 'jar:') {
-            const jarPath: string | null = PathManager.splitJarUrl(resourceURL.pathname);
-            if (jarPath) {
-                resultPath = jarPath;
-            }
-        }
-        if (!resultPath) {
-            Log.e(PathManager.TAG, `cannot extract '${resourcePath}' from '${resourceURL}'`);
-            return null;
-        }
-        return resolve(resultPath);
-    }
-
-    private static splitJarUrl(url: string): string | null {
-        const pivot = url.indexOf('!');
-        if (pivot < 0) return null;
-
-        let jarPath = url.slice(0, pivot);
-        if (jarPath.startsWith('jar:')) {
-            jarPath = jarPath.slice(4);
-        }
-
-        if (jarPath.startsWith('file:')) {
-            try {
-                const result = new URL(jarPath).pathname;
-                return result.replace(/\\/g, '/');
-            } catch (e) {
-                jarPath = jarPath.slice(5);
-                if (jarPath.startsWith('//')) {
-                    return jarPath.slice(2);
-                } else if (jarPath.startsWith(':')) {
-                    return jarPath.slice(1);
-                } else {
-                    return jarPath;
-                }
-            }
-        }
-
-        return jarPath;
     }
 }

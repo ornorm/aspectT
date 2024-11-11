@@ -31,12 +31,25 @@
  * questions.
  */
 
-import {FileFilter, Path} from '@ornorm/aspectT';
+import {
+    Chunk,
+    ErrorCallback,
+    FileFilter,
+    FilePath,
+    FileReadableStream,
+    FileVisitor,
+    FileVisitResult,
+    FileWritableStream,
+    ReadFileOptions,
+    ReadResult
+} from '@ornorm/aspectT';
+import {Blob} from 'buffer';
 import {execSync} from 'child_process';
 import {EventEmitter} from 'events';
 import {
     accessSync,
     chmodSync,
+    closeSync,
     constants,
     createReadStream,
     createWriteStream,
@@ -45,7 +58,10 @@ import {
     FSWatcher,
     mkdirSync,
     mkdtempSync,
+    Mode,
+    openSync,
     readdirSync,
+    readFileSync,
     ReadStream,
     realpathSync,
     renameSync,
@@ -55,11 +71,13 @@ import {
     utimesSync,
     watch,
     WatchEventType,
+    WriteFileOptions,
     writeFileSync,
     WriteStream
 } from 'fs';
 import {tmpdir} from 'os';
 import {basename, delimiter, dirname, isAbsolute, join, resolve, sep} from 'path';
+import {Readable, ReadableOptions, Writable, WritableOptions} from 'stream';
 
 /**
  * A type definition for a function that handles file system watch events.
@@ -68,6 +86,24 @@ import {basename, delimiter, dirname, isAbsolute, join, resolve, sep} from 'path
  * @param filename - A string representing the name of the file that changed, or `null` if not provided.
  */
 export type WatchHandler = (eventType: string, filename: string | null) => void;
+
+/**
+ * Options for listing files in a directory.
+ */
+export type FileListOptions = {
+    /**
+     * The encoding to use for the file names.
+     */
+    encoding: BufferEncoding | null;
+    /**
+     * Whether to include file types in the result.
+     */
+    withFileTypes?: false | undefined;
+    /**
+     * Whether to list files recursively.
+     */
+    recursive?: boolean | undefined;
+} | BufferEncoding;
 
 /**
  * A class that wraps around the `StatsBase` object to provide type-safe
@@ -336,7 +372,7 @@ export class FileStats<T> implements StatsBase<T> {
  * information taken from some other pathname.
  *
  * The `parent` of an abstract pathname may be obtained by invoking
- * the {@link gparent} method of this class and consists of the path name's
+ * the {@link parent} method of this class and consists of the path name's
  * prefix and each name in the path name's name sequence except for the last.
  *
  * Each directory's absolute pathname is an ancestor of any `FileObject`
@@ -401,7 +437,12 @@ export class FileStats<T> implements StatsBase<T> {
  * @author  Aimé Biendo <abiendo@gmail.com>
  * @since   aspectT1.0
  */
-export class FileObject extends EventEmitter implements Path {
+export class FileObject extends EventEmitter implements FilePath {
+    /**
+     * The file descriptor associated with this `FileObject`.
+     * It is `null` if the file is not currently open.
+     */
+    protected fd: number | null = null;
     /**
      * This abstract path name's normalized pathname string.
      *
@@ -409,113 +450,73 @@ export class FileObject extends EventEmitter implements Path {
      * character and does not contain any duplicate or redundant separators.
      */
     protected filePath: string;
+    /**
+     * The statistics of the file.
+     * This property holds an instance of `FileStats` which provides
+     * type-safe access to file statistics.
+     */
     protected fileStats: FileStats<number>;
-
-    /**
-     * Creates a new `FileObject` instance by converting the given
-     * pathname string into an abstract pathname.
-     *
-     * If the given string is the empty string, then the result is the empty
-     * abstract pathname.
-     *
-     * @param filePath  A pathname string
-     */
-    constructor(filePath: string);
-
-    /**
-     * Creates a new `FileObject` instance from a parent pathname string
-     * and a child pathname string.
-     *
-     * If `parent` is `null` then the new `FileObject` instance is created as
-     * if by invoking the single-argument `FileObject` constructor on the given
-     * `child` pathname string.
-     *
-     * Otherwise the `parent` pathname string is taken to denote
-     * a directory, and the `child` pathname string is taken to
-     * denote either a directory or a file.
-     *
-     * If the `child` pathname string is absolute then it is converted into a
-     * relative pathname in a system-dependent way.
-     *
-     * If `parent` is the empty string then the new `FileObject` instance is
-     * created by converting `child` into an abstract pathname and resolving
-     * the result against a system-dependent default directory.
-     *
-     * Otherwise each pathname string is converted into an abstract
-     * pathname and the child abstract pathname is resolved against the
-     * parent.
-     * @param   parent  The parent pathname string
-     * @param   child   The child pathname string
-     */
-    constructor(parent: string, child: string);
-
-    /**
-     * Creates a new `FileObject` instance from a parent pathname string
-     * and a child pathname string.
-     *
-     * If `parent` is `null` then the new `FileObject` instance is created as
-     * if by invoking the single-argument `FileObject` constructor on the
-     * given `child` pathname string.
-     *
-     * Otherwise the `parent` pathname string is taken to denote a directory,
-     * and the `child` pathname string is taken to denote either a directory
-     * or a file.
-     *
-     * If the `child` pathname string is absolute then it is converted into a
-     * relative pathname in a system-dependent way.
-     *
-     * If `parent` is the empty string then the new `FileObject` instance is
-     * created by converting `child` into an abstract pathname and resolving
-     * the result against a system-dependent default directory.
-     *
-     * Otherwise each pathname string is converted into an abstract
-     * pathname and the child abstract pathname is resolved against the
-     * parent.
-     * @param   parent  The parent pathname string
-     * @param   child The child pathname string
-     * @throws  ReferenceError If `child` is `null`
-     */
-    constructor(parent: FileObject, child: string);
-
-    /**
-     * Creates a new `FileObject` instance by converting the given
-     * `file:` URI into an abstract pathname.
-     *
-     * The exact form of a `file:` URI is system-dependent, hence
-     * the transformation performed by this constructor is also
-     * system-dependent.
-     * @param  uri
-     *         An absolute, hierarchical `URL` with a scheme equal to
-     *         `"file"`, a non-empty path component, and undefined
-     *         authority, query, and fragment components
-     */
-    constructor(uri: URL);
 
     /**
      * Constructs a new `FileObject` instance.
      *
      * @param filePath A string representing the file path, a `FileObject`
-     * instance, or a `URL`.
+     * instance, a `Blob` data or a `URL`.
      * @param child An optional string representing the child path.
-     * @throws URIError If the constructor arguments are invalid.
+     * @param mode An optional mode value.
+     * @throws ReferenceError If the file is already opened.
+     * @throws TypeError If the constructor arguments are invalid.
+     * @throws URIError If the URL protocol is not `file:`.
+     * @see Blob
+     * @see URL
+     * @see Mode
      */
-    constructor(filePath: string | FileObject | URL, child?: string) {
+    protected constructor(
+        filePath: string | Blob | FileObject | FilePath | URL,
+        child?: string,
+        mode?: Mode | null
+    ) {
         super();
         if (typeof filePath === 'string' && typeof child === 'undefined') {
             this.filePath = resolve(filePath);
         } else if (typeof filePath === 'string' && typeof child === 'string') {
             this.filePath = resolve(filePath, child);
         } else if (filePath instanceof FileObject && typeof child === 'string') {
-            this.filePath = resolve(filePath.toPath(), child);
+            this.filePath = resolve(filePath.toString(), child);
         } else if (filePath instanceof URL) {
             if (filePath.protocol !== 'file:') {
                 throw new URIError('URL must use the file protocol');
             }
             this.filePath = resolve(filePath.pathname);
+        } else if (filePath instanceof Blob) {
+            const tempFilePath: string = join(tmpdir(), FileObject.blobName);
+            filePath.arrayBuffer()
+                .then((buffer: ArrayBuffer) =>
+                    writeFileSync(tempFilePath,
+                        Buffer.from(buffer))
+                ).catch((error: Error) => {
+                throw error;
+            });
+            this.filePath = tempFilePath;
         } else {
-            throw new URIError('Invalid constructor arguments');
+            this.filePath = filePath.toString();
+        }
+        if (this.filePath === '') {
+            throw new TypeError('Invalid constructor arguments');
+        }
+        if (mode) {
+            this.open(mode);
         }
         this.fileStats = FileStats.get(this.filePath);
+    }
+
+    /**
+     * Generates a unique name for a blob.
+     *
+     * @returns A string representing the unique blob name.
+     */
+    public static get blobName(): string {
+        return `blob_${Date.now()}`;
     }
 
     /**
@@ -567,6 +568,16 @@ export class FileObject extends EventEmitter implements Path {
     }
 
     /**
+     * Returns an object to iterate over the paths of the root directories.
+     *
+     * @return  An object to iterate over the root directories
+     * @see IterableIterator
+     */
+    public static get rootDirectories(): IterableIterator<FilePath> {
+        return FileObject.listRoots[Symbol.iterator]();
+    }
+
+    /**
      * The system-dependent path-separator character, represented as a
      * string for convenience.
      *
@@ -613,6 +624,18 @@ export class FileObject extends EventEmitter implements Path {
      */
     public static get separatorChar(): number {
         return sep.charCodeAt(0);
+    }
+
+    /**
+     * Gets the file descriptor associated with this `FileObject`.
+     *
+     * The file descriptor is a low-level identifier used by the operating system
+     * to access the file. It is `null` if the file is not currently open.
+     *
+     * @returns The file descriptor, or `null` if the file is not open.
+     */
+    public get descriptor(): number | null {
+        return this.fd;
     }
 
     /**
@@ -767,7 +790,7 @@ export class FileObject extends EventEmitter implements Path {
 
     /**
      * Returns the name of the file or directory denoted by this path as a
-     * {@code Path} object.
+     * {@code FilePath} object.
      *
      * The file name is the <em>farthest</em> element from
      * the root in the directory hierarchy.
@@ -775,7 +798,7 @@ export class FileObject extends EventEmitter implements Path {
      * @return  a path representing the name of the file or directory, or
      *          {@code null} if this path has zero elements
      */
-    public get fileName(): Path | null {
+    public get fileName(): FilePath | null {
         return this;
     }
 
@@ -847,6 +870,20 @@ export class FileObject extends EventEmitter implements Path {
      */
     public get isDirectory(): boolean {
         return this.fileStats.isDirectory();
+    }
+
+    /**
+     * Checks if the directory denoted by this abstract pathname is empty.
+     *
+     * @returns `true` if the directory is empty, `false` otherwise.
+     * @throws TypeError if the path does not denote a directory.
+     */
+    public get isEmpty(): boolean {
+        if (!this.isDirectory) {
+            throw new TypeError('Not a directory');
+        }
+        const files: Array<string> = readdirSync(this.filePath);
+        return files.length === 0;
     }
 
     /**
@@ -946,6 +983,15 @@ export class FileObject extends EventEmitter implements Path {
     }
 
     /**
+     * Checks if the file is currently opened.
+     *
+     * @returns `true` if the file is opened, `false` otherwise.
+     */
+    public get opened(): boolean {
+        return this.fd !== null;
+    }
+
+    /**
      * Returns the pathname string of this abstract path name's `parent`, or
      * `null` if this pathname does not name a `parent` directory.
      *
@@ -987,7 +1033,7 @@ export class FileObject extends EventEmitter implements Path {
     /**
      * Returns the parent path, or if this path does not have a parent.
      */
-    public get parentPath(): Path | null {
+    public get parentPath(): FilePath | null {
         const parentPath: string | null = this.parent;
         return parentPath ? new FileObject(parentPath) : null;
     }
@@ -1003,13 +1049,13 @@ export class FileObject extends EventEmitter implements Path {
     }
 
     /**
-     * Returns the root component of this path as a {@code Path} object,
+     * Returns the root component of this path as a {@code FilePath} object,
      * or {@code null} if this path does not have a root component.
      *
      * @return  a path representing the root component of this path,
      *          or {@code null}
      */
-    public get root(): Path | null {
+    public get root(): FilePath | null {
         const rootPath: string = this.filePath.split(sep)[0];
         return rootPath ? new FileObject(rootPath) : null;
     }
@@ -1038,7 +1084,7 @@ export class FileObject extends EventEmitter implements Path {
      */
     public get uri(): URL {
         const f: FileObject = this.absoluteFile;
-        let sp: string = FileObject.slashify(f.path, f.isDirectory);
+        let sp: string = FileObject.toSlash(f.path, f.isDirectory);
         if (sp.startsWith("//")) {
             sp = "//" + sp;
         }
@@ -1058,7 +1104,7 @@ export class FileObject extends EventEmitter implements Path {
      * are illegal in URLs.
      */
     public get url(): URL {
-        return new URL(`file://${FileObject.slashify(this.absolutePath, this.isDirectory)}`);
+        return new URL(`file://${FileObject.toSlash(this.absolutePath, this.isDirectory)}`);
     }
 
     /**
@@ -1107,6 +1153,360 @@ export class FileObject extends EventEmitter implements Path {
     }
 
     /**
+     * Creates a `FileObject` from a `Blob`.
+     *
+     * This method writes the `Blob` data to a temporary file and returns a
+     * `FileObject` representing the file.
+     *
+     * @param blob The `Blob` object containing the data to be written
+     * to the file.
+     * @param options Optional settings for writing the file, such as encoding,
+     * mode, and flag.
+     * @returns A `Promise` that resolves to a `FileObject` representing
+     * the temporary file.
+     * @throws Error If an error occurs while writing the `Blob` data to
+     * the file.
+     * @see Blob
+     */
+    public static async blob(blob: Blob, options?: WriteFileOptions): Promise<FileObject> {
+        const tempFilePath: string = join(tmpdir(), FileObject.blobName);
+        try {
+            const buffer: ArrayBuffer = await blob.arrayBuffer();
+            writeFileSync(tempFilePath, Buffer.from(buffer), options);
+            return new FileObject(tempFilePath);
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    /**
+     * Decodes the given buffer into a `FilePath`.
+     *
+     * This method converts the contents of the provided buffer into a string
+     * using UTF-8 encoding and creates a new `FileObject` instance from the
+     * resulting string.
+     *
+     * @param buffer - The buffer containing the data to decode.
+     * @returns A `FilePath` representing the decoded data.
+     * @throws TypeError - If the buffer cannot be converted to a valid file path.
+     */
+    public static decode(buffer: Buffer): FilePath {
+        return new FileObject(buffer.toString('utf-8'));
+    }
+
+    /**
+     * Creates a new directory.
+     *
+     * The check for the existence of the file and the creation of the directory
+     * if it does not exist are a single operation that is atomic with respect
+     * to all other filesystem activities that might affect the directory.
+     *
+     * @param directoryPath The directory to create.
+     * @param attrs Mode to set atomically when creating the directory.
+     * @param recursive If `true`, all nonexistent ancestor directories are
+     * created.
+     * @returns The directory path.
+     * @see FileObject
+     * @see FilePath
+     * @see URL
+     */
+    public static directory(
+        directoryPath: string | FileObject | FilePath | URL,
+        attrs: Mode = 0o666,
+        recursive: boolean = true
+    ): FilePath {
+        const path: string = directoryPath instanceof URL ?
+            directoryPath.pathname :
+            directoryPath.toString();
+        try {
+            mkdirSync(path, {mode: attrs, recursive});
+            return new FileObject(path);
+        } catch (err: any) {
+            if (err.code === 'EEXIST') {
+                throw new ReferenceError('FileAlreadyExistsException: A directory of that name already exists');
+            } else if (err.code === 'ENOENT') {
+                throw new ReferenceError('IOException: The parent directory does not exist');
+            } else if (err.code === 'EACCES') {
+                throw new Error('SecurityException: Write access to the new directory is denied');
+            } else {
+                throw err;
+            }
+        }
+    }
+
+    /**
+     * Encodes the given `FilePath` into a `Buffer`.
+     *
+     * @param filePath - The `FilePath` to encode.
+     * @returns A `Buffer` containing the encoded `FilePath`.
+     * @see Buffer
+     */
+    public static encode(filePath: FilePath): Buffer {
+        return Buffer.from(filePath.toString(), 'utf-8');
+    }
+
+    /**
+     * Creates a new and empty file, failing if the file already exists.
+     *
+     * The check for the existence of the file and the creation of the new file if
+     * it does not exist are a single operation that is atomic with respect to
+     * all other filesystem activities that might affect the directory.
+     *
+     * @param filePath The path to the file to create.
+     * @param attrs Mode to set atomically when creating the file.
+     * @returns The file path.
+     * @throws ReferenceError If the array contains an attribute that cannot
+     * be set atomically when creating the file.
+     * @throws ReferenceError If a file of that name already exists.
+     * @throws ReferenceError If an I/O error occurs or the parent directory does not exist.
+     */
+    public static file(filePath: string | FileObject | URL, attrs: Mode = 0o666): FilePath {
+        const path: string = filePath instanceof FileObject ?
+            filePath.toString() : filePath instanceof URL ?
+                filePath.pathname : filePath;
+        try {
+            const fd: number | null = openSync(path, constants.O_CREAT | constants.O_EXCL, attrs);
+            closeSync(fd);
+            return new FileObject(path);
+        } catch (err: any) {
+            if (err.code === 'EEXIST') {
+                throw new ReferenceError('FileAlreadyExistsException: A file of that name already exists');
+            } else if (err.code === 'ENOENT') {
+                throw new ReferenceError('IOException: The parent directory does not exist');
+            } else if (err.code === 'EACCES') {
+                throw new Error('SecurityException: Write access to the new file is denied');
+            } else {
+                throw err;
+            }
+        }
+    }
+
+    /**
+     * Creates a new `FilePath` instance by converting the given
+     * pathname string into an abstract pathname.
+     *
+     * If the given string is the empty string, then the result is the empty
+     * abstract pathname.
+     *
+     * @param filePath  A pathname string
+     * @return  The resulting `FilePath` instance
+     * @see FilePath
+     */
+    public static filePath(filePath: string | FilePath): FilePath {
+        return new FileObject(filePath);
+    }
+
+    /**
+     * Constructs a new `FileObject` instance.
+     *
+     * @param filePath A string representing the file path, a `FileObject`
+     * instance, a `Blob` data or a `URL`.
+     * @param child An optional string representing the child path.
+     * @param mode An optional mode value.
+     * @returns A new `FileObject` instance.
+     * @throws ReferenceError If the file is already opened.
+     * @throws TypeError If the constructor arguments are invalid.
+     * @throws URIError If the URL protocol is not `file:`.
+     * @see Blob
+     * @see URL
+     * @see Mode
+     */
+    public static get(filePath: string | Blob | FileObject | URL, child?: string, mode?: Mode | null): FileObject {
+        return new FileObject(filePath, child, mode);
+    }
+
+    /**
+     * Joins multiple paths into a single `FilePath`.
+     *
+     * This method takes an array of paths, which can be either strings or
+     * `FilePath` objects, and resolves them into a single path.
+     *
+     * The resulting path is then returned as a new `FilePath`.
+     *
+     * @param paths - An array of paths to join. Each path can be a string
+     * or a `FilePath` object.
+     * @returns A new `FilePath` representing the joined path.
+     * @throws {RangeError} - If no paths are provided.
+     */
+    public static join(...paths: Array<string | FilePath>): FilePath {
+        if (paths.length === 0) {
+            throw new RangeError('Invalid number of arguments');
+        }
+        const resolvedPaths: Array<string> = paths.map((path: string | FilePath) =>
+            typeof path === 'string' ? path : path.toString()
+        );
+        return new FileObject(resolve(...resolvedPaths));
+    }
+
+    /**
+     * Lists the paths in the specified directory.
+     *
+     * This method takes a directory path, which can be a string, `FileObject`,
+     * `FilePath`, or `URL`, and returns an array of `FilePath` objects
+     * representing the paths in the directory.
+     *
+     * @param directoryPath The directory to list paths from. It can be a string,
+     * `FileObject`, `FilePath`, or `URL`.
+     * @returns An array of `FilePath` objects representing the paths in the directory.
+     * @throws ReferenceError If the directory does not exist.
+     * @throws TypeError If the path does not denote a directory.
+     */
+    public static listPaths(
+        directoryPath: string | FileObject | FilePath | URL
+    ): Array<FilePath> {
+        const path: string = directoryPath instanceof URL ?
+            directoryPath.pathname :
+            directoryPath.toString();
+        try {
+            return readdirSync(path).map((name: string) => FileObject.get(path, name));
+        } catch (err: any) {
+            if (err.code === 'ENOENT') {
+                throw new ReferenceError('IOException: The directory does not exist');
+            } else if (err.code === 'ENOTDIR') {
+                throw new TypeError('Not a directory');
+            } else {
+                throw err;
+            }
+        }
+    }
+
+    /**
+     * Creates a new `FileObject` instance from a parent pathname string
+     * and a child pathname string.
+     *
+     * If `parent` is `null` then the new `FileObject` instance is created as
+     * if by invoking the single-argument `FileObject` constructor on the
+     * given `child` pathname string.
+     *
+     * Otherwise the `parent` pathname string is taken to denote a directory,
+     * and the `child` pathname string is taken to denote either a directory
+     * or a file.
+     *
+     * If the `child` pathname string is absolute then it is converted into a
+     * relative pathname in a system-dependent way.
+     *
+     * If `parent` is the empty string then the new `FileObject` instance is
+     * created by converting `child` into an abstract pathname and resolving
+     * the result against a system-dependent default directory.
+     *
+     * Otherwise each pathname string is converted into an abstract
+     * pathname and the child abstract pathname is resolved against the
+     * parent.
+     * @param   parent  The parent pathname string
+     * @param   child The child pathname string
+     * @throws  ReferenceError If `child` is `null`
+     */
+    public static of(parent: FileObject, child?: string): FileObject {
+        return new FileObject(parent, child);
+    }
+
+    /**
+     * Creates a new `FileObject` instance from a parent pathname string
+     * and a child pathname string.
+     *
+     * If `parent` is `null` then the new `FileObject` instance is created as
+     * if by invoking the single-argument `FileObject` constructor on the given
+     * `child` pathname string.
+     *
+     * Otherwise the `parent` pathname string is taken to denote
+     * a directory, and the `child` pathname string is taken to
+     * denote either a directory or a file.
+     *
+     * If the `child` pathname string is absolute then it is converted into a
+     * relative pathname in a system-dependent way.
+     *
+     * If `parent` is the empty string then the new `FileObject` instance is
+     * created by converting `child` into an abstract pathname and resolving
+     * the result against a system-dependent default directory.
+     *
+     * Otherwise each pathname string is converted into an abstract
+     * pathname and the child abstract pathname is resolved against the
+     * parent.
+     * @param   parent  The parent pathname string
+     * @param   child   The child pathname string
+     */
+    public static path(parent: string, child: string): FileObject {
+        return new FileObject(parent, child);
+    }
+
+    /**
+     * Generates a unique file path by appending a random value to the
+     * given prefix and suffix.
+     *
+     * This method uses `crypto.getRandomValues` to generate a random
+     * value, which is then concatenated with the provided prefix and suffix
+     * to form a unique file name.
+     *
+     * The generated file name is resolved against the provided directory path.
+     *
+     * @param prefix - The prefix to be used in the generated file name.
+     * @param suffix - The suffix to be used in the generated file name.
+     * @param dir - The directory in which the file path will be resolved.
+     * @returns The generated unique file path.
+     * @throws TypeError If the generated file name is not a simple file name.
+     */
+    public static pathName(prefix: string, suffix: string, dir?: FilePath): FilePath {
+        const array: Uint32Array = new Uint32Array(1);
+        crypto.getRandomValues(array);
+        const n: number = array[0];
+        const absN: number = (n === 0) ? 0 : Math.abs(n);
+        const name: FilePath = FileObject.filePath(`${prefix}${absN}${suffix}`);
+        // the generated name should be a simple file name
+        if (name.parentPath !== null) {
+            throw new TypeError(`Invalid prefix or suffix: ${prefix}${absN}${suffix}`);
+        }
+        return dir ? dir.resolve(name) : name;
+    }
+
+    /**
+     * Opens a file, returning a readable stream to read from the file.
+     *
+     * @param path the path to the file to open
+     * @param options options specifying how the file is opened
+     *
+     * @return  a new readable stream
+     * @see FileObject
+     * @see ReadableOptions
+     * @see Readable
+     */
+    public static readable(
+        filePath: FileObject, readOptions?: ReadableOptions
+    ): Readable {
+        return new FileReadableStream(filePath, readOptions);
+    }
+
+    /**
+     * Creates a new directory in the default temporary-file directory, using
+     * the given prefix to generate its name.
+     *
+     * @param prefix The prefix string to be used in generating the directory's name
+     * @param attrs Mode to set atomically when creating the directory.
+     * @param recursive If `true`, all nonexistent ancestor directories are
+     * created.
+     * @returns A `FileObject` representing the created temporary directory.
+     */
+    public static tempDirectory(prefix: string, attrs: Mode = 0o666, recursive: boolean = true): FilePath {
+        const tempDirPath: string = mkdtempSync(join(tmpdir(), prefix));
+        try {
+            chmodSync(tempDirPath, attrs);
+            if (recursive) {
+                mkdirSync(tempDirPath, {mode: attrs, recursive});
+            }
+            return new FileObject(tempDirPath);
+        } catch (err: any) {
+            if (err.code === 'EEXIST') {
+                throw new ReferenceError('FileAlreadyExistsException: A directory of that name already exists');
+            } else if (err.code === 'ENOENT') {
+                throw new ReferenceError('IOException: The parent directory does not exist');
+            } else if (err.code === 'EACCES') {
+                throw new Error('SecurityException: Write access to the new directory is denied');
+            } else {
+                throw err;
+            }
+        }
+    }
+
+    /**
      * Creates a temporary file with the given prefix and suffix in the
      * specified directory.
      *
@@ -1115,15 +1515,109 @@ export class FileObject extends EventEmitter implements Path {
      * @param directory The directory in which to create the temporary file.
      * If not specified, the system's default temporary directory is used.
      * @returns A `FileObject` representing the created temporary file.
-     * @see FileObject
+     * @see FilePath
      */
-    public static createTempFile(
+    public static tempFile(
         prefix: string, suffix: string, directory?: FileObject
-    ): FileObject {
-        const tempDir: string = directory ? directory.toPath() : mkdtempSync(join(tmpdir(), prefix));
-        const tempFilePath: string = join(tempDir, `${prefix}${Date.now()}${suffix}`);
+    ): FilePath {
+        const tempDir: string = directory ? directory.toString() : mkdtempSync(join(tmpdir(), prefix));
+        const filePath: FilePath = FileObject.pathName(prefix, suffix);
+        const tempFilePath: string = join(tempDir, filePath.toString());
         writeFileSync(tempFilePath, '');
-        return new FileObject(tempFilePath);
+        return FileObject.filePath(tempFilePath);
+    }
+
+    /**
+     * Creates a temporary file path with the given prefix and suffix in the specified directory.
+     *
+     * @param dir - The directory in which the temporary file path will be created.
+     * @param prefix - The prefix to be used in the generated file name. Defaults to an empty string.
+     * @param suffix - The suffix to be used in the generated file name. Defaults to '.tmp'.
+     * @param createDirectory - Whether to create the directory if it does not exist. Defaults to true.
+     * @returns The generated temporary file path.
+     * @throws TypeError If the generated file name is not a simple file name.
+     */
+    public static tmpPath(
+        dir: FilePath,
+        prefix: string = '',
+        suffix: string = '.tmp',
+        createDirectory: boolean = true,
+        attrs: Mode = 0o666,
+        recursive: boolean = true
+    ): FilePath {
+        const path: FilePath = FileObject.pathName(prefix, suffix, dir);
+        if (createDirectory) {
+            return FileObject.directory(path, attrs, recursive);
+        }
+        return FileObject.filePath(path);
+    }
+
+    /**
+     * Creates a new `FileObject` instance by converting the given
+     * `file:` URI into an abstract pathname.
+     *
+     * The exact form of a `file:` URI is system-dependent, hence
+     * the transformation performed by this constructor is also
+     * system-dependent.
+     * @param  url
+     *         An absolute, hierarchical `URL` with a scheme equal to
+     *         `"file"`, a non-empty path component, and undefined
+     *         authority, query, and fragment components
+     * @throws URIError If the `URL` does not have the file protocol
+     */
+    public static url(url: URL): FileObject {
+        if (url.protocol !== 'file:') {
+            throw new URIError('URL must use the file protocol');
+        }
+        return new FileObject(url);
+    }
+
+    /**
+     * Creates a new writable stream to write to the specified file.
+     *
+     * @param filePath - The `FileObject` representing the file to write to.
+     * @param writeOptions - Optional `WritableOptions` to configure the writable stream.
+     * @returns A `Writable` stream to write to the file.
+     * @see FileObject
+     * @see WritableOptions
+     * @see Writable
+     */
+    public static writable(
+        filePath: FileObject, writeOptions?: WritableOptions
+    ): Writable {
+        return new FileWritableStream(filePath, writeOptions);
+    }
+
+    protected static assertNotNul(input: string, c: string): void {
+        if (c == '\u0000') {
+            throw new ReferenceError(`${input} Nul character not allowed.`);
+        }
+    }
+
+    protected static normalize(input: string, len: number = input.length, off: number = 0): string {
+        if (len === 0) {
+            return input;
+        }
+        let n: number = len;
+        while (n > 0 && input.charAt(n - 1) === '/') {
+            n--;
+        }
+        if (n === 0) {
+            return '/';
+        }
+        const sb: Array<string> = [];
+        if (off > 0) {
+            sb.push(input.substring(0, off));
+        }
+        let prevChar: string = '';
+        for (let i: number = off; i < n; i++) {
+            const c: string = input.charAt(i);
+            if (c === '/' && prevChar === '/') continue;
+            FileObject.assertNotNul(input, c);
+            sb.push(c);
+            prevChar = c;
+        }
+        return sb.join('');
     }
 
     /**
@@ -1133,7 +1627,7 @@ export class FileObject extends EventEmitter implements Path {
      * @param isDirectory A boolean indicating if the path is a directory.
      * @returns The slash-separated path.
      */
-    public static slashify(path: string, isDirectory: boolean): string {
+    protected static toSlash(path: string, isDirectory: boolean): string {
         let p: string = path;
         if (sep !== '/') {
             p = p.split(sep).join('/');
@@ -1145,6 +1639,22 @@ export class FileObject extends EventEmitter implements Path {
             p = p + '/';
         }
         return p;
+    }
+
+    /**
+     * Closes the file descriptor associated with this `FileObject`.
+     *
+     * If the file is not currently open, a `ReferenceError` is thrown.
+     *
+     * @throws ReferenceError If the file is not open.
+     */
+    public close(): void {
+        if (this.fd !== null) {
+            closeSync(this.fd);
+            this.fd = null;
+        } else {
+            throw new ReferenceError('IOException: The file is not open');
+        }
     }
 
     /**
@@ -1229,8 +1739,8 @@ export class FileObject extends EventEmitter implements Path {
     /**
      * @inheritDoc
      */
-    public endsWith(other: Path | string): boolean {
-        const otherPath: string = typeof other === 'string' ? other : other.valueOf();
+    public endsWith(other: FilePath | string): boolean {
+        const otherPath: string = typeof other === 'string' ? other : other.toString();
         return this.filePath.endsWith(otherPath);
     }
 
@@ -1257,7 +1767,7 @@ export class FileObject extends EventEmitter implements Path {
     /**
      * @inheritDoc
      */
-    public getName(index: number): Path {
+    public getName(index: number): FilePath {
         const names: Array<string> = this.filePath.split(sep).filter(Boolean);
         if (index < 0 || index >= names.length) {
             throw new RangeError('Index out of range');
@@ -1306,17 +1816,19 @@ export class FileObject extends EventEmitter implements Path {
      * will appear in any specific order; they are not, in particular,
      * guaranteed to appear in alphabetical order.
      *
-     * @param  filter A filename filter
+     * @param  filter A filename filter.
+     * @param  options Optional settings for listing the directory.
      * @return  An array of strings naming the files and directories in the
      *          directory denoted by this abstract pathname.
      * @see FileFilter
+     * @see FileListOptions
      */
-    public list(filter?: FileFilter): Array<string> | null {
+    public list(filter?: FileFilter, options?: FileListOptions | null): Array<string> | null {
         if (!this.isDirectory) {
             return null;
         }
         try {
-            const names: Array<string> = readdirSync(this.filePath);
+            const names: Array<string> = readdirSync(this.filePath, options);
             if (!names || !filter) {
                 return names;
             }
@@ -1342,7 +1854,7 @@ export class FileObject extends EventEmitter implements Path {
      * Otherwise an array of {@code FileObject} objects is returned, one
      * for each file or directory in the directory.
      *
-     * Path names denoting the directory itself and the directory's parent
+     * FilePath names denoting the directory itself and the directory's parent
      * directory are not included in the result.
      *
      * Each resulting abstract pathname is constructed from this abstract
@@ -1409,7 +1921,9 @@ export class FileObject extends EventEmitter implements Path {
      * all necessary parent directories; `false` otherwise
      */
     public mkdirs(): boolean {
-        if (this.exists) return false;
+        if (this.exists) {
+            return false;
+        }
         mkdirSync(this.filePath, {recursive: true});
         return true;
     }
@@ -1417,7 +1931,7 @@ export class FileObject extends EventEmitter implements Path {
     /**
      * @inheritDoc
      */
-    public normalize(): Path {
+    public normalize(): FilePath {
         const parts: Array<string> = this.filePath.split(sep);
         const stack: Array<string> = [];
 
@@ -1438,10 +1952,67 @@ export class FileObject extends EventEmitter implements Path {
     }
 
     /**
+     * Opens the file with the specified mode.
+     *
+     * @param mode The mode in which to open the file. If not specified,
+     * the default mode is used.
+     * @throws ReferenceError If the file is already opened.
+     */
+    public open(mode?: Mode | null): void {
+        if (this.fd !== null) {
+            this.fd = openSync(this.filePath, 'r', mode);
+        } else {
+            throw new ReferenceError('File is already opened');
+        }
+    }
+
+    /**
+     * Reads the contents of the file.
+     *
+     * @param options Optional settings for reading the file.
+     * @returns A buffer containing the file's contents.
+     * @throws TypeError If the file is a directory.
+     * @see Buffer
+     */
+    public read(options?: ReadFileOptions | null): Buffer {
+        if (this.isDirectory) {
+            throw new TypeError('IOException: Cannot read a directory');
+        }
+        return readFileSync(this.fd || this.filePath, options);
+    }
+
+    /**
+     * Reads data from the file denoted by this abstract pathname.
+     *
+     * The method returns a `ReadStream` object that can be used to
+     * monitor the read operation.
+     *
+     * @param options Optional options to specify the encoding of the data.
+     * @param size The number of bytes to read from the file.
+     * @param readResult A callback function to be called with the read result.
+     * @returns A `ReadStream` object that can be used to monitor the
+     * read operation.
+     * @see BufferEncoding
+     * @see ReadResult
+     * @see ReadStream
+     */
+    public readStream(options?: BufferEncoding, size?: number, readResult?: ReadResult): ReadStream {
+        const readable: ReadStream = createReadStream(this.filePath, options);
+        readable.on('data', this.onData.bind(this));
+        readable.on('end', this.onEnd.bind(this));
+        readable.on('error', this.onError.bind(this));
+        if (size !== undefined && readResult !== undefined) {
+            const result: Chunk = readable.read(size);
+            readResult(result);
+        }
+        return readable;
+    }
+
+    /**
      * @inheritDoc
      */
-    public relativize(other: Path | string): Path {
-        const otherPath: string = typeof other === 'string' ? other : other.valueOf();
+    public relativize(other: FilePath | string): FilePath {
+        const otherPath: string = typeof other === 'string' ? other : other.toString();
         const fromParts: Array<string> = this.filePath.split(sep);
         const toParts: Array<string> = otherPath.split(sep);
         // Remove common parts
@@ -1454,24 +2025,6 @@ export class FileObject extends EventEmitter implements Path {
             fromParts.map(() => '..').concat(toParts);
         const relativePath: string = relativeParts.join(sep);
         return new FileObject(relativePath);
-    }
-
-    /**
-     * Reads data from the file denoted by this abstract pathname.
-     *
-     * The method returns a `ReadStream` object that can be used to
-     * monitor the read operation.
-     *
-     * @returns A `ReadStream` object that can be used to monitor the
-     * read operation.
-     * @see ReadStream
-     */
-    public read(): ReadStream {
-        const readable: ReadStream = createReadStream(this.filePath);
-        readable.on('data', this.onData.bind(this));
-        readable.on('end', this.onEnd.bind(this));
-        readable.on('error', this.onError.bind(this));
-        return readable;
     }
 
     /**
@@ -1494,8 +2047,8 @@ export class FileObject extends EventEmitter implements Path {
      */
     public renameTo(dest: FileObject): boolean {
         try {
-            renameSync(this.filePath, dest.toPath());
-            this.filePath = dest.toPath();
+            renameSync(this.filePath, dest.toString());
+            this.filePath = dest.toString();
             return true;
         } catch {
             return false;
@@ -1505,8 +2058,8 @@ export class FileObject extends EventEmitter implements Path {
     /**
      * @inheritDoc
      */
-    public resolve(other: Path | string): Path {
-        const otherPath: string = typeof other === 'string' ? other : other.valueOf();
+    public resolve(other: FilePath | string): FilePath {
+        const otherPath: string = typeof other === 'string' ? other : other.toString();
         const resolvedPath: string = resolve(this.filePath, otherPath);
         return new FileObject(resolvedPath);
     }
@@ -1514,12 +2067,12 @@ export class FileObject extends EventEmitter implements Path {
     /**
      * @inheritDoc
      */
-    public resolveSibling(other: Path | string): Path {
+    public resolveSibling(other: FilePath | string): FilePath {
         const parentPath: string | null = this.parent;
         if (parentPath === null) {
             throw new ReferenceError('Cannot resolve sibling for a path with no parent');
         }
-        const otherPath: string = typeof other === 'string' ? other : other.valueOf();
+        const otherPath: string = typeof other === 'string' ? other : other.toString();
         const resolvedPath: string = resolve(parentPath, otherPath);
         return new FileObject(resolvedPath);
     }
@@ -1663,16 +2216,15 @@ export class FileObject extends EventEmitter implements Path {
     /**
      * @inheritDoc
      */
-    public startsWith(other: Path | string): boolean {
-        const otherPath: string = typeof other === 'string' ? other : other.valueOf();
+    public startsWith(other: FilePath | string): boolean {
+        const otherPath: string = typeof other === 'string' ? other : other.toString();
         return this.filePath.startsWith(otherPath);
     }
-
 
     /**
      * @inheritDoc
      */
-    public subpath(beginIndex: number = 0, endIndex: number = -1): Path {
+    public subpath(beginIndex: number = 0, endIndex: number = -1): FilePath {
         const names: Array<string> = this.filePath.split(sep).filter(Boolean);
         if (endIndex === -1) {
             endIndex = names.length;
@@ -1697,7 +2249,7 @@ export class FileObject extends EventEmitter implements Path {
     /**
      * @inheritDoc
      */
-    public toAbsolutePath(): Path {
+    public toAbsolutePath(): FilePath {
         if (this.isAbsolute) {
             return this;
         }
@@ -1706,9 +2258,22 @@ export class FileObject extends EventEmitter implements Path {
     }
 
     /**
+     * The content-type of the `Blob`.
+     *
+     * @param type - The content-type of the `Blob`.
+     * @param options - Optional options to specify the encoding of the data.
+     * @see ReadFileOptions
+     * @see Blob
+     */
+    public toBlob(type: string, options?: ReadFileOptions | null): Blob {
+        const fileContent: Buffer = readFileSync(this.fd || this.filePath, options);
+        return new Blob([fileContent], {type});
+    }
+
+    /**
      * @inheritDoc
      */
-    public toRealPath(options?: EncodingOption): Path {
+    public toRealPath(options?: EncodingOption): FilePath {
         const realPath: string = realpathSync(this.filePath, options);
         return new FileObject(realPath);
     }
@@ -1721,9 +2286,10 @@ export class FileObject extends EventEmitter implements Path {
      * user directory.
      *
      * @return  a path constructed from this abstract path
+     * @see FilePath
      */
-    public toPath(): string {
-        return this.path;
+    public toPath(): FilePath {
+        return this;
     }
 
     /**
@@ -1745,15 +2311,46 @@ export class FileObject extends EventEmitter implements Path {
     }
 
     /**
-     * Watches for changes on the file or directory denoted by this abstract pathname.
+     * @inheritDoc
+     */
+    public visitPath(visitor: FileVisitor<FilePath>): void {
+        this.sync();
+        if (this.isDirectory) {
+            const visitResult: FileVisitResult = visitor.preVisitDirectory(this, this.fileStats);
+            if (visitResult === FileVisitResult.CONTINUE) {
+                const files: Array<FileObject> | null = this.listFiles();
+                if (files) {
+                    for (const file of files) {
+                        file.visitPath(visitor);
+                    }
+                }
+                visitor.postVisitDirectory(this);
+            } else if (visitResult === FileVisitResult.SKIP_SUBTREE) {
+                visitor.postVisitDirectory(this);
+            }
+        } else {
+            visitor.visitFile(this, this.fileStats);
+        }
+    }
+
+    /**
+     * Watches for changes on the file or directory denoted by this abstract
+     * pathname.
      *
-     * The callback function is invoked with the event type and the filename when a change is detected.
-     * The filename parameter can be `null` if the filename is not provided by the underlying system.
+     * The callback function is invoked with the event type and the filename
+     * when a change is detected.
      *
-     * @param callback - A function to be called when a change is detected. The function receives two arguments:
-     *                   - `eventType`: A string indicating the type of change (`"rename"` or `"change"`).
-     *                   - `filename`: A string representing the name of the file that changed, or `null` if not provided.
-     * @returns An `FSWatcher` object that can be used to stop watching for changes.
+     * The filename parameter can be `null` if the filename is not provided
+     * by the underlying system.
+     *
+     * @param callback - A function to be called when a change is detected.
+     *                  The function receives two arguments:
+     *                   - `eventType`: A string indicating the type of
+     *                   change (`"rename"` or `"change"`).
+     *                   - `filename`: A string representing the name of the file
+     *                   that changed, or `null` if not provided.
+     * @returns An `FSWatcher` object that can be used to stop watching
+     * for changes.
      * @see WatchHandler
      * @see FSWatcher
      */
@@ -1773,21 +2370,50 @@ export class FileObject extends EventEmitter implements Path {
     /**
      * Writes data to the file denoted by this abstract pathname.
      *
+     * @param data - The data to be written to the file. It can be a string
+     * or a Node.js ArrayBufferView.
+     * @param options - Optional settings for writing the file, such as
+     * encoding, mode, and flag.
+     * @throws TypeError - If the file is a directory.
+     * @see WriteFileOptions
+     */
+    public write(
+        data: string | NodeJS.ArrayBufferView,
+        options?: WriteFileOptions,
+    ): void {
+        if (this.isDirectory) {
+            throw new TypeError('IOException: Cannot write to a directory');
+        }
+        writeFileSync(this.fd || this.filePath, data, options);
+    }
+
+    /**
+     * Writes data to the file denoted by this abstract pathname.
+     *
      * The data can be either a `Buffer` or a `string`.
      * The method returns a `WriteStream` object that can be used to
      * monitor the write operation.
      *
      * @param data - The data to be written to the file. It can be a `Buffer` or a `string`.
+     * @param options - Optional options to specify the encoding of the data.
+     * @param callback - An optional callback function to be called when
+     * the write operation is complete.
      * @returns A `WriteStream` object that can be used to monitor the
      * write operation.
      * @see Buffer
+     * @see BufferEncoding
+     * @see ErrorCallback
      * @see WriteStream
      */
-    public write(data: Buffer | string): WriteStream {
-        const writable: WriteStream = createWriteStream(this.filePath);
-        writable.write(data);
+    public writeStream(
+        data: Buffer | string,
+        options?: BufferEncoding,
+        callback?: ErrorCallback
+    ): WriteStream {
+        const writable: WriteStream = createWriteStream(this.filePath, options);
         writable.on('finish', this.onFinish.bind(this));
         writable.on('error', this.onError.bind(this));
+        writable.write(data, callback);
         return writable;
     }
 

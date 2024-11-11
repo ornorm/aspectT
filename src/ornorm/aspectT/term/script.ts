@@ -10,7 +10,7 @@ export class Script {
      * Generate the typescript source code.
      *
      * @param classPaths List of code class names.
-     * @param outputPath Path of the script.
+     * @param outputPath FilePath of the script.
      * @return The generated code
      */
     public static generateTypesScript(descriptors: Array<ModuleDescriptor>, outputPath: string): string {
@@ -35,7 +35,7 @@ export {ClassPath, Descriptors};
      *
      * @param mod The {@link ModuleDescriptor} that hold imports.
      * @param classPaths List of code class names.
-     * @param outputPath Path of the script.
+     * @param outputPath FilePath of the script.
      * @return The generated code source
      */
     public static generateImports(

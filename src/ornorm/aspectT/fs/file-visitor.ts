@@ -1,14 +1,37 @@
-import {FileObject, FileStats} from '@ornorm/aspectT';
-
 /**
- * Defines the file tree traversal options.
+ * This TypeScript code is a port of the FileFilter interface originally written in Java.
+ * The original Java code was created by Oracle and/or its affiliates.
+ *
+ * Ported to TypeScript by Aimé Biendo <abiendo@gmail.com> as part of the AspectT Inc. AOP project.
+ *
+ * This file is part of the AspectT Inc. product, a seamless aspect-oriented extension to the TypeScript™ programming language.
+ * JavaScript platform compatible. Easy to learn and use.
+ *
+ * Copyright (c) 1994, 2011, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
  */
-export enum FileVisitOption {
-    /**
-     * Follow symbolic links.
-     */
-    FOLLOW_LINKS,
-}
+
+import {FileStats} from '@ornorm/aspectT';
 
 /**
  * The result type of a {@link FileVisitor}.
@@ -27,8 +50,8 @@ export enum FileVisitResult {
     /**
      * Continue without visiting the entries in this directory.
      *
-     * This result is only meaningful when returned from the {@link
-     * FileVisitor.preVisitDirectory} method; otherwise
+     * This result is only meaningful when returned from the
+     * {@link FileVisitor.preVisitDirectory} method; otherwise
      * this result type is the same as returning {@link CONTINUE}.
      */
     SKIP_SUBTREE,
@@ -42,14 +65,20 @@ export enum FileVisitResult {
     SKIP_SIBLINGS,
 }
 
+/**
+ * A visitor of files.
+ *
+ * An implementation of this interface is provided to the {@link Files.walkFileTree}
+ */
 export interface FileVisitor<T = number> {
     /**
      * Invoked for a directory before entries in the directory are visited.
      *
-     * Unless overridden, this method returns {@link FileVisitResult.CONTINUE}.
+     * Unless overridden, this method returns
+     * {@link FileVisitResult.CONTINUE}.
      * @see FileVisitResult
      */
-    preVisitDirectory(dir: T, attrs: FileStats): FileVisitResult;
+    preVisitDirectory(dir: T, attrs: FileStats<any>): FileVisitResult;
 
     /**
      * Invoked for a file in a directory.
@@ -57,7 +86,7 @@ export interface FileVisitor<T = number> {
      * Unless overridden, this method returns {@link FileVisitResult.CONTINUE}.
      * @see FileVisitResult
      */
-    visitFile(file: T, attrs: FileStats): FileVisitResult;
+    visitFile(file: T, attrs: FileStats<any>): FileVisitResult;
 
     /**
      * Invoked for a file that could not be visited.
@@ -72,7 +101,8 @@ export interface FileVisitor<T = number> {
      * Invoked for a directory after entries in the directory, and all of their
      * descendants, have been visited.
      *
-     * Unless overridden, this method returns {@link FileVisitResult.CONTINUE}
+     * Unless overridden, this method returns
+     * {@link FileVisitResult.CONTINUE}
      * if the directory iteration completes without an I/O exception;
      * otherwise this method re-throws the I/O exception that caused the
      * iteration of the directory to terminate prematurely.
@@ -94,7 +124,7 @@ export class SimpleFileVisitor<T = string> implements FileVisitor<T> {
     /**
      * @inheritDoc
      */
-    public preVisitDirectory(dir: T, attrs: FileStats): FileVisitResult {
+    public preVisitDirectory(dir: T, attrs: FileStats<T>): FileVisitResult {
         if (!dir || !attrs) throw new Error('Arguments cannot be null');
         return FileVisitResult.CONTINUE;
     }
@@ -102,8 +132,10 @@ export class SimpleFileVisitor<T = string> implements FileVisitor<T> {
     /**
      * @inheritDoc
      */
-    public visitFile(file: T, attrs: FileStats): FileVisitResult {
-        if (!file || !attrs) throw new Error('Arguments cannot be null');
+    public visitFile(file: T, attrs: FileStats<T>): FileVisitResult {
+        if (!file || !attrs) {
+            throw new ReferenceError('Arguments cannot be null');
+        }
         return FileVisitResult.CONTINUE;
     }
 
@@ -131,129 +163,4 @@ export class SimpleFileVisitor<T = string> implements FileVisitor<T> {
     }
 }
 
-export class FileTreeWalker {
-    private followLinks: boolean;
-    private linkOptions: Array<LinkOption>;
-    private visitor: FileVisitor<FileObject>;
-    private maxDepth: number;
-    private fileCache: Map<string, FileObject> = new Map<string, FileObject>();
 
-    constructor(
-        options: Set<FileVisitOption>,
-        visitor: FileVisitor<FileObject>,
-        maxDepth: number
-    ) {
-        this.followLinks = options.has(FileVisitOption.FOLLOW_LINKS);
-        this.linkOptions = this.followLinks ? [] : [LinkOption.NOFOLLOW_LINKS];
-        this.visitor = visitor;
-        this.maxDepth = maxDepth;
-    }
-
-    public walk(start: FileObject): void {
-        const result: FileVisitResult | null = this.walkInternal(start, 0, []);
-        if (result === null) {
-            throw new TypeError("FileVisitor returned null");
-        }
-    }
-
-    private walkInternal(file: FileObject, depth: number, ancestors: Array<FileObject>): FileVisitResult {
-        let attrs: FileStats | null = null;
-        let exc: Error | null = null;
-        if (depth > 0) {
-            const cached: FileObject | undefined = this.fileCache.get(file.toString());
-            if (!this.followLinks || !cached?.isSymbolicLink) {
-                attrs = cached;
-            }
-        }
-
-        if (attrs === null) {
-            try {
-                attrs = FileObject.readAttributes(file, BasicFileAttributes, ...this.linkOptions);
-            } catch (x1) {
-                if (this.followLinks) {
-                    try {
-                        attrs = FileObject.readAttributes(file, BasicFileAttributes, LinkOption.NOFOLLOW_LINKS);
-                    } catch (x2) {
-                        exc = x2;
-                    }
-                } else {
-                    exc = x1;
-                }
-            }
-        }
-
-        if (exc !== null) {
-            return this.visitor.visitFileFailed(file, exc);
-        }
-
-        if (depth >= this.maxDepth || !attrs.isDirectory()) {
-            return this.visitor.visitFile(file, attrs);
-        }
-
-        if (this.followLinks) {
-            const key = attrs.fileKey();
-            for (const ancestor of ancestors) {
-                const ancestorKey = ancestor.fileKey();
-                if (key !== null && ancestorKey !== null) {
-                    if (key.equals(ancestorKey)) {
-                        return this.visitor.visitFileFailed(file, new FileSystemLoopException(file.toString()));
-                    }
-                } else {
-                    let isSameFile = false;
-                    try {
-                        isSameFile = FileObject.isSameFile(file, ancestor.file());
-                    } catch {
-                        // ignore
-                    }
-                    if (isSameFile) {
-                        return this.visitor.visitFileFailed(file, new FileSystemLoopException(file.toString()));
-                    }
-                }
-            }
-            ancestors.push(new AncestorDirectory(file, key));
-        }
-
-        let result: FileVisitResult;
-        let stream: DirectoryStream<Path> | null = null;
-        let ioe: IOException | null = null;
-
-        try {
-            stream = FileObject.newDirectoryStream(file);
-        } catch (x) {
-            return this.visitor.visitFileFailed(file, x);
-        }
-
-        try {
-            result = this.visitor.preVisitDirectory(file, attrs);
-            if (result !== FileVisitResult.CONTINUE) {
-                return result;
-            }
-
-            try {
-                for (const entry of stream) {
-                    result = this.walkInternal(entry, depth + 1, ancestors);
-                    if (result === null || result === FileVisitResult.TERMINATE) {
-                        return result;
-                    }
-                    if (result === FileVisitResult.SKIP_SIBLINGS) {
-                        break;
-                    }
-                }
-            } catch (e) {
-                if (e instanceof DirectoryIteratorException) {
-                    ioe = e.getCause();
-                }
-            }
-        } finally {
-            try {
-                stream.close();
-            } catch (e) {
-                if (ioe === null) {
-                    ioe = e;
-                }
-            }
-        }
-
-        return this.visitor.postVisitDirectory(file, ioe);
-    }
-}

@@ -1,4 +1,6 @@
 export * from './file-filter';
 export * from './file-object';
-export * from './path';
+export * from './file-path';
+export * from './file-stream';
+export * from './file-visitor';
 export * from './path-manager';

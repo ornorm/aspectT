@@ -1,16 +1,47 @@
+/**
+ * This TypeScript code is a port of the File class originally written in Java.
+ * The original Java code was created by Oracle and/or its affiliates.
+ *
+ * Ported to TypeScript by Aimé Biendo <abiendo@gmail.com> as part of the AspectT Inc. AOP project.
+ *
+ * This file is part of the AspectT Inc. product, a seamless aspect-oriented extension to the TypeScript™ programming language.
+ * JavaScript platform compatible. Easy to learn and use.
+ *
+ * Copyright (c) 1994, 2011, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+
+import {FileVisitor} from '@ornorm/aspectT';
 import {EncodingOption} from 'fs';
 
 /**
- * Defines the options as to how symbolic links are handled.
+ * Interface representing a file path.
+ *
+ * This interface provides methods to interact with and manipulate file paths.
+ * It includes methods to check if a path is absolute, retrieve components of the path,
+ * and perform operations such as normalization, resolution, and relativization.
  */
-export enum LinkOption {
-    /**
-     * Do not follow symbolic links.
-     */
-    NOFOLLOW_LINKS
-}
-
-export interface Path {
+export interface FilePath {
     /**
      * Tells whether or not this path is absolute.
      *
@@ -22,23 +53,23 @@ export interface Path {
     readonly isAbsolute: boolean;
 
     /**
-     * Returns the root component of this path as a {@code Path} object,
+     * Returns the root component of this path as a {@code FilePath} object,
      * or {@code null} if this path does not have a root component.
      *
      * @return  a path representing the root component of this path,
      *          or {@code null}
      */
-    readonly root: Path | null;
+    readonly root: FilePath | null;
 
     /**
      * Returns the name of the file or directory denoted by this path as a
-     * {@code Path} object. The file name is the <em>farthest</em> element from
+     * {@code FilePath} object. The file name is the <em>farthest</em> element from
      * the root in the directory hierarchy.
      *
      * @return  a path representing the name of the file or directory, or
      *          {@code null} if this path has zero elements
      */
-    readonly fileName: Path | null;
+    readonly fileName: FilePath | null;
 
     /**
      * Returns the <em>parent path</em>, or {@code null} if this path does not
@@ -63,7 +94,7 @@ export interface Path {
      *
      * @return  a path representing the path's parent
      */
-    readonly parentPath: Path | null;
+    readonly parentPath: FilePath | null;
     /**
      * Returns the number of name elements in the path.
      *
@@ -92,14 +123,14 @@ export interface Path {
      * resulting {@code URI} will end with a slash.
      *
      * <p> The default provider provides a similar <em>round-trip</em> guarantee
-     * to the {@link java.io.File} class. For a given {@code Path} <i>p</i> it
+     * to the {@link java.io.File} class. For a given {@code FilePath} <i>p</i> it
      * is guaranteed that
      * <blockquote><tt>
      * {@link Paths#get(URI) Paths.get}(</tt><i>p</i><tt>.toUri()).equals(</tt><i>p</i>
      * <tt>.{@link #toAbsolutePath() toAbsolutePath}())</tt>
      * </blockquote>
-     * so long as the original {@code Path}, the {@code URI}, and the new {@code
-     * Path} are all created in (possibly different invocations of) the same
+     * so long as the original {@code FilePath}, the {@code URI}, and the new {@code
+     * FilePath} are all created in (possibly different invocations of) the same
      * Java virtual machine. Whether other providers make any guarantees is
      * provider specific and therefore unspecified.
      *
@@ -126,7 +157,7 @@ export interface Path {
     readonly url: URL;
 
     /**
-     * Returns a name element of this path as a {@code Path} object.
+     * Returns a name element of this path as a {@code FilePath} object.
      *
      * <p> The {@code index} parameter is the index of the name element to return.
      * The element that is <em>closest</em> to the root in the directory hierarchy
@@ -143,17 +174,17 @@ export interface Path {
      *          equal to the number of elements, or this path has zero name
      *          elements
      */
-    getName(index: number): Path;
+    getName(index: number): FilePath;
 
     /**
-     * Returns a relative {@code Path} that is a subsequence of the name
+     * Returns a relative {@code FilePath} that is a subsequence of the name
      * elements of this path.
      *
      * <p> The {@code beginIndex} and {@code endIndex} parameters specify the
      * subsequence of name elements. The name that is <em>closest</em> to the root
      * in the directory hierarchy has index {@code 0}. The name that is
      * <em>farthest</em> from the root has index {@link #getNameCount
-     * count}{@code -1}. The returned {@code Path} object has the name elements
+     * count}{@code -1}. The returned {@code FilePath} object has the name elements
      * that begin at {@code beginIndex} and extend to the element at index {@code
      * endIndex-1}.
      *
@@ -162,15 +193,15 @@ export interface Path {
      * @param   endIndex
      *          the index of the last element, exclusive
      *
-     * @return  a new {@code Path} object that is a subsequence of the name
-     *          elements in this {@code Path}
+     * @return  a new {@code FilePath} object that is a subsequence of the name
+     *          elements in this {@code FilePath}
      *
      * @throws  RangeError
      *          if {@code beginIndex} is negative, or greater than or equal to
      *          the number of elements. If {@code endIndex} is less than or
      *          equal to {@code beginIndex}, or larger than the number of elements.
      */
-    subpath(beginIndex: number, endIndex: number): Path;
+    subpath(beginIndex: number, endIndex: number): FilePath;
 
     /**
      * Tests if this path starts with the given path.
@@ -195,7 +226,7 @@ export interface Path {
      * @return  {@code true} if this path starts with the given path; otherwise
      *          {@code false}
      */
-    startsWith(other: Path | string): boolean;
+    startsWith(other: FilePath | string): boolean;
 
     /**
      * Tests if this path ends with the given path.
@@ -222,7 +253,7 @@ export interface Path {
      * @return  {@code true} if this path ends with the given path; otherwise
      *          {@code false}
      */
-    endsWith(other: Path | string): boolean;
+    endsWith(other: FilePath | string): boolean;
 
     /**
      * Returns a path that is this path with redundant name elements eliminated.
@@ -249,7 +280,7 @@ export interface Path {
      * @see #getParent
      * @see #toRealPath
      */
-    normalize(): Path;
+    normalize(): FilePath;
 
     // -- resolution and relativization --
 
@@ -274,15 +305,15 @@ export interface Path {
      *
      * @see #relativize
      */
-    resolve(other: Path | string): Path;
+    resolve(other: FilePath | string): FilePath;
 
     /**
      * Resolves the given path against this path's {@link #getParent parent}
      * path. This is useful where a file name needs to be <i>replaced</i> with
      * another file name. For example, suppose that the name separator is
      * "{@code /}" and a path represents "{@code dir1/dir2/foo}", then invoking
-     * this method with the {@code Path} "{@code bar}" will result in the {@code
-     * Path} "{@code dir1/dir2/bar}". If this path does not have a parent path,
+     * this method with the {@code FilePath} "{@code bar}" will result in the {@code
+     * FilePath} "{@code dir1/dir2/bar}". If this path does not have a parent path,
      * or {@code other} is {@link #isAbsolute() absolute}, then this method
      * returns {@code other}. If {@code other} is an empty path then this method
      * returns this path's parent, or where this path doesn't have a parent, the
@@ -293,16 +324,16 @@ export interface Path {
      *
      * @return  the resulting path
      *
-     * @see #resolve(Path)
+     * @see #resolve(FilePath)
      */
-    resolveSibling(other: Path | string): Path;
+    resolveSibling(other: FilePath | string): FilePath;
 
     /**
      * Constructs a relative path between this path and a given path.
      *
-     * <p> Relativization is the inverse of {@link #resolve(Path) resolution}.
+     * <p> Relativization is the inverse of {@link #resolve(FilePath) resolution}.
      * This method attempts to construct a {@link #isAbsolute relative} path
-     * that when {@link #resolve(Path) resolved} against this path, yields a
+     * that when {@link #resolve(FilePath) resolved} against this path, yields a
      * path that locates the same file as the given path. For example, on UNIX,
      * if this path is {@code "/a/b"} and the given path is {@code "/a/b/c/d"}
      * then the resulting relative path would be {@code "c/d"}. Where this
@@ -334,33 +365,24 @@ export interface Path {
      *          equal
      *
      * @throws  IllegalArgumentException
-     *          if {@code other} is not a {@code Path} that can be relativized
+     *          if {@code other} is not a {@code FilePath} that can be relativized
      *          against this path
      */
-    relativize(other: Path | string): Path;
+    relativize(other: FilePath | string): FilePath;
 
     /**
-     * Returns a {@code Path} object representing the absolute path of this
+     * Returns a {@code FilePath} object representing the absolute path of this
      * path.
      *
-     * <p> If this path is already {@link Path#isAbsolute absolute} then this
+     * <p> If this path is already {@link FilePath#isAbsolute absolute} then this
      * method simply returns this path. Otherwise, this method resolves the path
      * in an implementation dependent manner, typically by resolving the path
      * against a file system default directory. Depending on the implementation,
      * this method may throw an I/O error if the file system is not accessible.
      *
-     * @return  a {@code Path} object representing the absolute path
-     *
-     * @throws  IOError
-     *          if an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager
-     *          is installed, and this path is not absolute, then the security
-     *          manager's {@link SecurityManager#checkPropertyAccess(String)
-     *          checkPropertyAccess} method is invoked to check access to the
-     *          system property {@code user.dir}
+     * @return  a {@code FilePath} object representing the absolute path
      */
-    toAbsolutePath(): Path;
+    toAbsolutePath(): FilePath;
 
     /**
      * Returns the <em>real</em> path of an existing file.
@@ -395,18 +417,28 @@ export interface Path {
      *
      * @return  an absolute path represent the <em>real</em> path of the file
      *          located by this object
-     *
-     * @throws  IOException
-     *          if the file does not exist or an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, and a security manager
-     *          is installed, its {@link SecurityManager#checkRead(String) checkRead}
-     *          method is invoked to check read access to the file, and where
-     *          this path is not absolute, its {@link SecurityManager#checkPropertyAccess(String)
-     *          checkPropertyAccess} method is invoked to check access to the
-     *          system property {@code user.dir}
      */
-    toRealPath(options?: EncodingOption): Path;
+    toRealPath(options?: EncodingOption): FilePath;
 
+    /**
+     * Returns the string representation of this path.
+     *
+     * @return The string representation of this path.
+     */
+    toString(): string;
+
+    /**
+     * Returns the primitive value of this path.
+     *
+     * @return The primitive value of this path.
+     */
     valueOf(): string;
+
+    /**
+     * Accepts a `FileVisitor` to visit this path.
+     *
+     * @param visitor - The `FileVisitor` to visit this path.
+     * @see FileVisitor
+     */
+    visitPath(visitor: FileVisitor<FilePath>): void;
 }

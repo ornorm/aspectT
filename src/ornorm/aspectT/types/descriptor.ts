@@ -25,7 +25,7 @@ export interface ModuleDescriptor {
      */
     interfaces: Array<InterfaceDescriptor>;
     /**
-     * Path of the source.
+     * FilePath of the source.
      */
     path: string;
 }
