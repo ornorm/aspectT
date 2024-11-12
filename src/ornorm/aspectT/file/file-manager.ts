@@ -1,5 +1,5 @@
 /**
- * @file path-manager.ts
+ * @file file-manager.ts
  * @description This file contains the path manager implementation for the AspectT project.
  * @license MIT
  *
@@ -18,12 +18,12 @@ let mgr: any;
 /**
  * Manages the paths and directories of a project.
  *
- * The `PathManager` class provides methods to manage and retrieve paths
+ * The `FileManager` class provides methods to manage and retrieve paths
  * and directories within a project.
  *
  * It follows the singleton pattern to ensure only one instance is created.
  */
-export class PathManager {
+export class FileManager {
     private readonly projectLayout: Map<string, FilePath> = new Map<string, FilePath>();
 
     /* DEFAULT PROJECT DIRECTORIES */
@@ -65,7 +65,7 @@ export class PathManager {
      */
     public static readonly TESTS_DIRECTORY: string = 'test';
 
-    private static readonly TAG: string = 'PathManager';
+    private static readonly TAG: string = 'FileManager';
 
     private readonly homePath: string;
 
@@ -79,20 +79,20 @@ export class PathManager {
     }
 
     /**
-     * Returns an instance of `PathManager`.
+     * Returns an instance of `FileManager`.
      *
-     * This method ensures that only one instance of `PathManager` is
+     * This method ensures that only one instance of `FileManager` is
      * created (singleton pattern).
      *
      * If an instance already exists, it returns the existing instance; otherwise,
      * it creates a new one.
      *
-     * @returns The singleton instance of `PathManager`.
-     * @see PathManager
+     * @returns The singleton instance of `FileManager`.
+     * @see FileManager
      */
-    public static get(): PathManager {
+    public static get(): FileManager {
         if (!mgr) {
-            mgr = new PathManager();
+            mgr = new FileManager();
         }
         return mgr;
     }
@@ -102,10 +102,10 @@ export class PathManager {
      * @see FilePath
      */
     public get binDir(): FilePath | undefined {
-        if (!this.hasDir(PathManager.BIN_DIRECTORY) && this.homeDir) {
-            this.mapDir(PathManager.BIN_DIRECTORY, this.homeDir.resolve(PathManager.BIN_DIRECTORY));
+        if (!this.hasDir(FileManager.BIN_DIRECTORY) && this.homeDir) {
+            this.mapDir(FileManager.BIN_DIRECTORY, this.homeDir.resolve(FileManager.BIN_DIRECTORY));
         }
-        return this.getDir(PathManager.BIN_DIRECTORY);
+        return this.getDir(FileManager.BIN_DIRECTORY);
     }
 
     /**
@@ -126,10 +126,10 @@ export class PathManager {
      *  @see FilePath
      */
     public get configDir(): FilePath | undefined {
-        if (!this.hasDir(PathManager.CONFIG_DIRECTORY) && this.homeDir) {
-            this.mapDir(PathManager.CONFIG_DIRECTORY, this.homeDir.resolve(PathManager.CONFIG_DIRECTORY));
+        if (!this.hasDir(FileManager.CONFIG_DIRECTORY) && this.homeDir) {
+            this.mapDir(FileManager.CONFIG_DIRECTORY, this.homeDir.resolve(FileManager.CONFIG_DIRECTORY));
         }
-        return this.getDir(PathManager.CONFIG_DIRECTORY);
+        return this.getDir(FileManager.CONFIG_DIRECTORY);
     }
 
     /**
@@ -150,10 +150,10 @@ export class PathManager {
      * @see FilePath
      */
     public get distDir(): FilePath | undefined {
-        if (!this.hasDir(PathManager.DIST_DIRECTORY) && this.homeDir) {
-            this.mapDir(PathManager.DIST_DIRECTORY, this.homeDir.resolve(PathManager.DIST_DIRECTORY));
+        if (!this.hasDir(FileManager.DIST_DIRECTORY) && this.homeDir) {
+            this.mapDir(FileManager.DIST_DIRECTORY, this.homeDir.resolve(FileManager.DIST_DIRECTORY));
         }
-        return this.getDir(PathManager.DIST_DIRECTORY);
+        return this.getDir(FileManager.DIST_DIRECTORY);
     }
 
     /**
@@ -174,10 +174,10 @@ export class PathManager {
      *  @see FilePath
      */
     public get docsDir(): FilePath | undefined {
-        if (!this.hasDir(PathManager.DOCS_DIRECTORY) && this.homeDir) {
-            this.mapDir(PathManager.DOCS_DIRECTORY, this.homeDir.resolve(PathManager.DOCS_DIRECTORY));
+        if (!this.hasDir(FileManager.DOCS_DIRECTORY) && this.homeDir) {
+            this.mapDir(FileManager.DOCS_DIRECTORY, this.homeDir.resolve(FileManager.DOCS_DIRECTORY));
         }
-        return this.getDir(PathManager.DOCS_DIRECTORY);
+        return this.getDir(FileManager.DOCS_DIRECTORY);
     }
 
     /**
@@ -223,10 +223,10 @@ export class PathManager {
      * @see FilePath
      */
     public get libsDir(): FilePath | undefined {
-        if (!this.hasDir(PathManager.LIBS_DIRECTORY) && this.homeDir) {
-            this.mapDir(PathManager.LIBS_DIRECTORY, this.homeDir.resolve(PathManager.LIBS_DIRECTORY));
+        if (!this.hasDir(FileManager.LIBS_DIRECTORY) && this.homeDir) {
+            this.mapDir(FileManager.LIBS_DIRECTORY, this.homeDir.resolve(FileManager.LIBS_DIRECTORY));
         }
-        return this.getDir(PathManager.LIBS_DIRECTORY);
+        return this.getDir(FileManager.LIBS_DIRECTORY);
     }
 
     /**
@@ -247,10 +247,10 @@ export class PathManager {
      * @see FilePath
      */
     public get logsDir(): FilePath | undefined  {
-        if (!this.hasDir(PathManager.LOGS_DIRECTORY) && this.homeDir) {
-            this.mapDir(PathManager.LOGS_DIRECTORY, this.homeDir.resolve(PathManager.LOGS_DIRECTORY));
+        if (!this.hasDir(FileManager.LOGS_DIRECTORY) && this.homeDir) {
+            this.mapDir(FileManager.LOGS_DIRECTORY, this.homeDir.resolve(FileManager.LOGS_DIRECTORY));
         }
-        return this.getDir(PathManager.LOGS_DIRECTORY);
+        return this.getDir(FileManager.LOGS_DIRECTORY);
     }
 
     /**
@@ -271,10 +271,10 @@ export class PathManager {
      *  @see FilePath
      */
     public get pluginsDir(): FilePath | undefined {
-        if (!this.hasDir(PathManager.PLUGINS_DIRECTORY) && this.homeDir) {
-            this.mapDir(PathManager.PLUGINS_DIRECTORY, this.homeDir.resolve(PathManager.PLUGINS_DIRECTORY));
+        if (!this.hasDir(FileManager.PLUGINS_DIRECTORY) && this.homeDir) {
+            this.mapDir(FileManager.PLUGINS_DIRECTORY, this.homeDir.resolve(FileManager.PLUGINS_DIRECTORY));
         }
-        return this.getDir(PathManager.PLUGINS_DIRECTORY);
+        return this.getDir(FileManager.PLUGINS_DIRECTORY);
     }
 
     /**
@@ -295,10 +295,10 @@ export class PathManager {
      * @see FilePath
      */
     public get srcDir(): FilePath | undefined {
-        if (!this.hasDir(PathManager.SRC_DIRECTORY) && this.homeDir) {
-            this.mapDir(PathManager.SRC_DIRECTORY, this.homeDir.resolve(PathManager.SRC_DIRECTORY));
+        if (!this.hasDir(FileManager.SRC_DIRECTORY) && this.homeDir) {
+            this.mapDir(FileManager.SRC_DIRECTORY, this.homeDir.resolve(FileManager.SRC_DIRECTORY));
         }
-        return this.getDir(PathManager.SRC_DIRECTORY);
+        return this.getDir(FileManager.SRC_DIRECTORY);
     }
 
     /**
@@ -319,10 +319,10 @@ export class PathManager {
      * @see FilePath
      */
     public get testsDir(): FilePath | undefined {
-        if (!this.hasDir(PathManager.TESTS_DIRECTORY) && this.homeDir) {
-            this.mapDir(PathManager.TESTS_DIRECTORY, this.homeDir.resolve(PathManager.TESTS_DIRECTORY));
+        if (!this.hasDir(FileManager.TESTS_DIRECTORY) && this.homeDir) {
+            this.mapDir(FileManager.TESTS_DIRECTORY, this.homeDir.resolve(FileManager.TESTS_DIRECTORY));
         }
-        return this.getDir(PathManager.TESTS_DIRECTORY);
+        return this.getDir(FileManager.TESTS_DIRECTORY);
     }
 
     /**
