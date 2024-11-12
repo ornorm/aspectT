@@ -3,6 +3,15 @@ import {statSync, writeFileSync, WriteStream} from 'fs';
 import {exit, stdout} from 'process';
 
 /**
+ * Exit status for syntax errors, etc.
+ */
+export const EXIT_FAILURE: number = 1;
+/**
+ * Exit status for successful execution.
+ */
+export const EXIT_SUCCESS: number = 0;
+
+/**
  * The official name of this program (e.g., no 'g' prefix).
  */
 const PROGRAM_NAME: string = 'printf';
@@ -34,6 +43,10 @@ export interface print_context {
      * @see Buffer
      */
     buffer?: string | Array<string> | Buffer;
+
+    char_count: number;
+
+    cursor_position: number;
     /**
      * The error number or exception.
      */
@@ -56,6 +69,9 @@ export interface print_context {
      * The format string to use.
      */
     format?: string;
+
+    param_index: number;
+
     /**
      * The parameters to use in the format string.
      */
@@ -91,50 +107,109 @@ export interface print_context {
 }
 
 /**
- * Creates and returns a default context for the printf function.
+ * Creates and returns a default context for the `printf` function.
  *
- * @returns The new printf context.
+ * @param context - The context to use as a base.
+ * @returns The new `printf` context.
  * @see print_context
  */
-function get_print_context(): print_context {
+function get_print_context(context?: Partial<print_context>): print_context {
     return {
         buffer: [],
         cfcc_msg: 'warning: %s: character(s) following character constant have been ignored',
+        char_count: 0,
+        cursor_position: 0,
         exit_status: 0,
         format: '',
+        param_index: 0,
         params: [],
         posixly_correct: getenv_int('POSIXLY_CORRECT', 0) === 1,
         program_name: PROGRAM_NAME,
         proper_name: AUTHORS,
         stderr: stdout,
-        stdout: stdout
+        stdout: stdout,
+        ...(context || {})
     };
 }
 
 /**
  * Emits ancillary information for the given program name.
  *
+ * @param this - The context for the `printf` function.
  * @param programName - The name of the program for which to emit
  * ancillary information.
+ * @returns The number of characters written.
+ * @see print_context
  */
-function emit_ancillary_info(programName: string): void {
-    print_out({format: `Ancillary info for %s\n`, params: [programName], stdout});
+function emit_ancillary_info(this: print_context, programName: string): number {
+    this.format = `Ancillary info for %s\n`;
+    this.params = [programName];
+    this.stdout = stdout;
+    return print_out(this);
 }
 
 /**
  * Emits a message suggesting the user try the help option.
+ *
+ * @param this - The context for the `printf` function.
+ * @returns The number of characters written.
+ * @see print_context
  */
-function emit_try_help(): void {
-    print_out({format: `Try 'printf --help' for more information.\n`, params: [], stdout});
+function emit_try_help(this: print_context): number {
+    this.format = `Try '%s --help' for more information.\n`;
+    this.params = [];
+    this.stdout = stdout;
+    return print_out(this);
 }
 
 /**
  * Writes a string to the standard output stream.
  *
+ * @param this - The context for the `printf` function.
  * @param s - The string to write.
+ * @returns The number of characters written.
+ * @see print_context
  */
-function fputs(s: string): void {
-    print_out({format: s, params: [], stdout});
+function fputs(this: print_context, s: string): number {
+    this.format = s;
+    this.params = [];
+    this.stdout = stdout;
+    return print_out(this);
+}
+
+/**
+ * Displays the manual information for the program and exits with the given status.
+ *
+ * @param status - The exit status code. If non-zero, the manual information
+ * is displayed and the program suggests trying the help option.
+ *
+ * If zero, detailed manual information is displayed.
+ */
+function print_man(status: number): void {
+    const context: print_context = get_print_context();
+    if (status !== EXIT_SUCCESS) {
+        emit_try_help.call(context);
+    } else {
+        printf.call(context, `%s — manual\n\n`, PROGRAM_NAME);
+        printf.call(context, `NAME\n\n`);
+        printf.call(context, `\tprintf, fprintf, sprintf\n`);
+        printf.call(context, `LIBRARY\n\n`);
+        printf.call(context, `\tAspectT library\n\n`);
+        printf.call(context, `SYNOPSIS\n\n`);
+        printf.call(context, `\timport { printf, fprintf, sprintf } from '@ornorm/aspectT';\n\n`);
+        printf.call(context, `\tfunction printf(this: print_context, format: string, ...params: Array<any>): number;\n`);
+        printf.call(context, `\tfunction fprintf(this: print_context, file: string | number | FileWritableStream, format: string, ...params: Array<any>): number;\n`);
+        printf.call(context, `\tfunction sprintf(this: print_context, buffer: string | Array<string> | Buffer, format: string, ...params: Array<any>): number;\n\n`);
+        fputs.call(context, `This program supports the following format specifiers:\n\n`);
+        conversion_specifiers.forEach((specifier: conversion_specifier) => {
+            printf.call(context, `Specifier: %s\n`, specifier.specifier);
+            printf.call(context, `Description: %s\n`, specifier.explanation);
+            printf.call(context, `Expected Argument Type: %s\n`, specifier.expectedArgumentType);
+            printf.call(context, `Length Modifier: %s\n\n`, specifier.lengthModifier);
+        });
+        emit_ancillary_info.call(context, PROGRAM_NAME);
+    }
+    exit(status);
 }
 
 /**
@@ -147,23 +222,45 @@ function fputs(s: string): void {
  * If zero, detailed usage information is displayed.
  */
 function print_usage(status: number): void {
-    if (status !== 0) {
-        emit_try_help();
+    const context: print_context = get_print_context();
+    if (status !== EXIT_SUCCESS) {
+        emit_try_help.call(context);
     } else {
-        const ctx: print_context = get_print_context();
-        printf.call(ctx, `Usage: %s FORMAT [ARGUMENT]...\n  or:  %s OPTION\n`, PROGRAM_NAME, PROGRAM_NAME);
-        fputs(`Print ARGUMENT(s) according to FORMAT, or execute according to OPTION:\n`);
-        fputs(HELP_OPTION_DESCRIPTION);
-        fputs(VERSION_OPTION_DESCRIPTION);
-        fputs(`FORMAT controls the output as in C printf. Interpreted sequences are:\n`);
-        fputs(`  \\\"      double quote\n  \\\\      backslash\n  \\a      alert (BEL)\n  \\b      backspace\n  \\c      produce no further output\n  \\e      escape\n  \\f      form feed\n  \\n      new line\n  \\r      carriage return\n  \\t      horizontal tab\n  \\v      vertical tab\n`);
-        fputs(`  \\NNN    byte with octal value NNN (1 to 3 digits)\n  \\xHH    byte with hexadecimal value HH (1 to 2 digits)\n  \\uHHHH  Unicode (ISO/IEC 10646) character with hex value HHHH (4 digits)\n  \\UHHHHHHHH  Unicode character with hex value HHHHHHHH (8 digits)\n`);
-        fputs(`  %%      a single %\n  %b      ARGUMENT as a string with '\\' escapes interpreted,\n          except that octal escapes should have a leading 0 like \\0NNN\n  %q      ARGUMENT is printed in a format that can be reused as shell input,\n          escaping non-printable characters with the POSIX $'' syntax\n`);
-        fputs(`and all C format specifications ending with one of diouxXfeEgGcs, with\nARGUMENTs converted to proper type first. Variable widths are handled.\n`);
-        printf.call(ctx, USAGE_BUILTIN_WARNING, PROGRAM_NAME);
-        emit_ancillary_info(PROGRAM_NAME);
+        printf.call(context, `Usage: %s FORMAT [ARGUMENT]...\n  or:  %s OPTION\n`, PROGRAM_NAME, PROGRAM_NAME);
+        fputs.call(context, `Print ARGUMENT(s) according to FORMAT, or execute according to OPTION:\n`);
+        fputs.call(context, HELP_OPTION_DESCRIPTION);
+        fputs.call(context, VERSION_OPTION_DESCRIPTION);
+        fputs.call(context, `FORMAT controls the output as in C printf. Interpreted sequences are:\n`);
+        fputs.call(context, `  \\\"      double quote\n  \\\\      backslash\n  \\a      alert (BEL)\n  \\b      backspace\n  \\c      produce no further output\n  \\e      escape\n  \\f      form feed\n  \\n      new line\n  \\r      carriage return\n  \\t      horizontal tab\n  \\v      vertical tab\n`);
+        fputs.call(context, `  \\NNN    byte with octal value NNN (1 to 3 digits)\n  \\xHH    byte with hexadecimal value HH (1 to 2 digits)\n  \\uHHHH  Unicode (ISO/IEC 10646) character with hex value HHHH (4 digits)\n  \\UHHHHHHHH  Unicode character with hex value HHHHHHHH (8 digits)\n`);
+        fputs.call(context, `  %%      a single %\n  %b      ARGUMENT as a string with '\\' escapes interpreted,\n          except that octal escapes should have a leading 0 like \\0NNN\n  %q      ARGUMENT is printed in a format that can be reused as shell input,\n          escaping non-printable characters with the POSIX $'' syntax\n`);
+        fputs.call(context, `and all C format specifications ending with one of diouxXfeEgGcs, with\nARGUMENTs converted to proper type first. Variable widths are handled.\n`);
+        printf.call(context, USAGE_BUILTIN_WARNING, PROGRAM_NAME);
+        emit_ancillary_info.call(context, PROGRAM_NAME);
     }
     exit(status);
+}
+
+/**
+ * Verifies if the given string `s` is numeric and checks for conversion errors.
+ *
+ * @param this - The context for the `printf` function.
+ * @param s - The string to verify.
+ * @param end - The remaining part of the string after conversion.
+ * @see print_context
+ */
+function verify_numeric(this: print_context, s: string, end: string): void {
+    if (this.errno) {
+        error.call(this, 0, this.errno, '%s', s);
+        this.exit_status = 1;
+    } else if (end.length > 0) {
+        if (s === end) {
+            error.call(this, 0, null, '%s: expected a numeric value', s);
+        } else {
+            error.call(this, 0, null, '%s: value not completely converted', s);
+        }
+        this.exit_status = 1;
+    }
 }
 
 /**
@@ -175,31 +272,31 @@ function print_usage(status: number): void {
  * @param [precision] Optional precision for formatting.
  * @returns The formatted string.
  */
-export type printf_modifier = (value: any, flags?: string, width?: number, precision?: number, charCount?: number) => string;
+export type conversion_function = (value: any, flags?: string, width?: number, precision?: number, charCount?: number) => string;
 
 /**
  * Map of format string encoded as a template language consisting of
  * verbatim text and format specifiers that each specify how to serialize
  * a value.
- * @see printf_modifier
+ * @see conversion_function
  */
-const printf_templates: Record<string, printf_modifier> = {
-    '%s': (value: string, flags?: string, width?: number) => padString(String(value), flags, width),
-    '%d': (value: number, flags?: string, width?: number) => padString(Number(value).toFixed(0), flags, width),
-    '%i': (value: number, flags?: string, width?: number) => padString(parseInt(value.toString(), 10).toString(), flags, width),
-    '%u': (value: number, flags?: string, width?: number) => padString((value >>> 0).toString(), flags, width),
-    '%f': (value: number, flags?: string, width?: number, precision?: number) => padString(Number(value).toFixed(precision ?? 6), flags, width),
-    '%x': (value: number, flags?: string, width?: number) => padString(Number(value).toString(16), flags, width),
-    '%X': (value: number, flags?: string, width?: number) => padString(Number(value).toString(16).toUpperCase(), flags, width),
-    '%o': (value: number, flags?: string, width?: number) => padString(Number(value).toString(8), flags, width),
-    '%c': (value: number, flags?: string, width?: number) => padString(String.fromCharCode(value), flags, width),
-    '%p': (value: any, flags?: string, width?: number) => padString(`0x${Number(value).toString(16)}`, flags, width),
-    '%e': (value: number, flags?: string, width?: number, precision?: number) => padString(Number(value).toExponential(precision ?? 6), flags, width),
-    '%E': (value: number, flags?: string, width?: number, precision?: number) => padString(Number(value).toExponential(precision ?? 6).toUpperCase(), flags, width),
-    '%g': (value: number, flags?: string, width?: number, precision?: number) => padString(Number(value).toPrecision(precision ?? 6), flags, width),
-    '%G': (value: number, flags?: string, width?: number, precision?: number) => padString(Number(value).toPrecision(precision ?? 6).toUpperCase(), flags, width),
-    '%a': (value: number, flags?: string, width?: number, precision?: number) => padString(Number(value).toString(16), flags, width),
-    '%A': (value: number, flags?: string, width?: number, precision?: number) => padString(Number(value).toString(16).toUpperCase(), flags, width),
+const conversion_functions: Record<string, conversion_function> = {
+    '%s': (value: string, flags?: string, width?: number) => pad_string(String(value), flags, width),
+    '%d': (value: number, flags?: string, width?: number) => pad_string(Number(value).toFixed(0), flags, width),
+    '%i': (value: number, flags?: string, width?: number) => pad_string(parseInt(value.toString(), 10).toString(), flags, width),
+    '%u': (value: number, flags?: string, width?: number) => pad_string((value >>> 0).toString(), flags, width),
+    '%f': (value: number, flags?: string, width?: number, precision?: number) => pad_string(Number(value).toFixed(precision ?? 6), flags, width),
+    '%x': (value: number, flags?: string, width?: number) => pad_string(Number(value).toString(16), flags, width),
+    '%X': (value: number, flags?: string, width?: number) => pad_string(Number(value).toString(16).toUpperCase(), flags, width),
+    '%o': (value: number, flags?: string, width?: number) => pad_string(Number(value).toString(8), flags, width),
+    '%c': (value: number, flags?: string, width?: number) => pad_string(String.fromCharCode(value), flags, width),
+    '%p': (value: any, flags?: string, width?: number) => pad_string(`0x${Number(value).toString(16)}`, flags, width),
+    '%e': (value: number, flags?: string, width?: number, precision?: number) => pad_string(Number(value).toExponential(precision ?? 6), flags, width),
+    '%E': (value: number, flags?: string, width?: number, precision?: number) => pad_string(Number(value).toExponential(precision ?? 6).toUpperCase(), flags, width),
+    '%g': (value: number, flags?: string, width?: number, precision?: number) => pad_string(Number(value).toPrecision(precision ?? 6), flags, width),
+    '%G': (value: number, flags?: string, width?: number, precision?: number) => pad_string(Number(value).toPrecision(precision ?? 6).toUpperCase(), flags, width),
+    '%a': (value: number, flags?: string, width?: number, precision?: number) => pad_string(Number(value).toString(16), flags, width),
+    '%A': (value: number, flags?: string, width?: number, precision?: number) => pad_string(Number(value).toString(16).toUpperCase(), flags, width),
     '%n': (value: any, flags?: string, width?: number, precision?: number, charCount?: number) => {
         if (typeof value === 'object' && value !== null && 'set' in value) {
             value.set(charCount);
@@ -208,6 +305,14 @@ const printf_templates: Record<string, printf_modifier> = {
     },
     '%%': () => '%'
 };
+
+/**
+ * Array of keys representing numeric conversion functions.
+ * @see conversion_functions
+ */
+const numeric_functions: Array<string> = Object.keys(conversion_functions).filter((key: string) =>
+    ['%d', '%i', '%u', '%f', '%x', '%X', '%o', '%e', '%E', '%g', '%G', '%a', '%A'].includes(key)
+);
 
 /**
  * Interface representing a conversion specifier for the printf function.
@@ -322,20 +427,21 @@ const conversion_specifiers: Array<conversion_specifier> = [
  * @param token The format specifier token.
  * @returns The corresponding printf modifier function, or undefined if
  * not found.
+ * @see conversion_function
  */
-function str_to_expression(token: string): printf_modifier | undefined {
-    return Reflect.get(printf_templates, `%${token}`)
+function str_to_expression(token: string): conversion_function | undefined {
+    return Reflect.get(conversion_functions, `%${token}`)
 }
 
 /**
  * Pads a string to a specified width with optional flags.
  *
  * @param value The string value to be padded.
- * @param [flags] Optional flags for padding. '0' for zero-padding, '-' for left-align.
+ * @param [flags] Optional flags for padding. `0` for zero-padding, `-` for left-align.
  * @param [width] Optional width for the padded string.
  * @returns The padded string.
  */
-function padString(value: string, flags?: string, width?: number): string {
+function pad_string(value: string, flags?: string, width?: number): string {
     if (!width) {
         return value;
     }
@@ -359,16 +465,17 @@ function padString(value: string, flags?: string, width?: number): string {
  * specifiers.
  * @param params - Additional parameters to be used in the formatted
  * message.
+ * @see ErrnoException
  */
-function printf_error(
+function error(
     this: print_context,
     status: number,
-    err: Error | null,
+    err: Error | NodeJS.ErrnoException | null,
     message: string,
     ...params: Array<any>
 ): void {
-    const formattedMessage: string = print_format(err ? err.message : message, ...params);
-    this?.stderr?.write(formattedMessage + '\n');
+    const formattedMessage: string = print_format.call(this, err ? err.message : message, ...params);
+    this?.stderr?.write(`${formattedMessage}\n`);
     if (status !== 0) {
         exit(status);
     }
@@ -547,18 +654,21 @@ function printf_error(
  * | n      | Print nothing, but writes the number of characters written so far into an integer pointer parameter. |
  *
  *
+ * @param this - The context for the `printf` function.
  * @param format - Consists of ordinary byte characters (except %), which
  * are copied unchanged into the output stream, and conversion specifications.
  * @param params - Arguments specifying data to print..
  * @returns The formatted message as a string.
  */
-function print_format(format: string, ...params: Array<any>): string {
-    let paramIndex: number = 0;
-    let charCount: number = 0;
+function print_format(this: print_context, format: string, ...params: Array<any>): string {
+    this.param_index = 0;
+    this.char_count = 0;
+    this.cursor_position = 0;
     const result: string = format.replace(/%(\d+\$)?([-+ 0'#]*)?(\d+)?(\.\d+)?([hlLzjtI32I64q])?([sdifxXocpeEgGaAn%])/g, (match: string, param: any, flags: any, width: any, precision: any, length: any, type: any) => {
-        let value: any = param ? params[parseInt(param) - 1] : params[paramIndex++];
-        const modifier: printf_modifier | undefined = str_to_expression(type);
-        if (modifier) {
+        const index: number = param ? parseInt(param) - 1 : this.param_index++;
+        let value: any = params[index];
+        const converter: conversion_function | undefined = str_to_expression(type);
+        if (converter) {
             // Handle length modifiers
             if (length) {
                 switch (length) {
@@ -587,19 +697,23 @@ function print_format(format: string, ...params: Array<any>): string {
                         break;
                 }
             }
-            const formattedValue: string = modifier(value, flags, width ?
+            const formattedValue: string = converter(value, flags, width ?
                     parseInt(width) : undefined,
                 precision ? parseInt(precision.slice(1)) : undefined,
-                charCount
+               this.char_count
             );
-            charCount += formattedValue.length;
+            this.char_count += formattedValue.length;
+            this.cursor_position += match.length;
+            if (numeric_functions.includes(match)) {
+                verify_numeric.call(this, `${value}`, format.slice(this.cursor_position));
+            }
             return formattedValue;
         }
+        this.cursor_position += match.length;
         return match;
     });
     return result;
 }
-
 /**
  * Writes the formatted output to the standard output stream.
  *
@@ -609,7 +723,7 @@ function print_format(format: string, ...params: Array<any>): string {
  */
 function print_out(context: print_context): number {
     if (context.format) {
-        const result: string = print_format(context.format, ...(context.params || []));
+        const result: string = print_format.call(context, context.format, ...(context.params || []));
         if (context.stdout) {
             context.stdout.write(result);
             return result.length;
@@ -695,7 +809,7 @@ function printf(this: print_context, format: string, ...params: Array<any>): num
  */
 function print_buffer(context: print_context): number {
     if (context.format && context.buffer) {
-        const result: string = print_format(context.format, ...(context.params || []));
+        const result: string = print_format.call(context, context.format, ...(context.params || []));
         const oldLength: number = context.buffer.length;
         if (typeof context.buffer === 'string') {
             context.buffer += result;
@@ -751,7 +865,7 @@ function print_file(context: print_context): number {
     if (!context.format) {
         return -1;
     }
-    const result: string = print_format(context.format, ...(context.params || []));
+    const result: string = print_format.call(context, context.format, ...(context.params || []));
     let oldLength: number = 0;
     try {
         if (typeof context.file === 'string' || typeof context.file === 'number') {
@@ -816,7 +930,7 @@ function fprintf(this: print_context, file: string | number | FileWritableStream
  */
 function print_err(context: print_context): number | never {
     if (context.format) {
-        const result: string = print_format(context.format, ...(context.params || []));
+        const result: string = print_format.call(context, context.format, ...(context.params || []));
         if (context.stderr) {
             if (context.errno) {
                 if (typeof context.errno === 'number') {
@@ -854,7 +968,7 @@ function print_err(context: print_context): number | never {
  * output error or an encoding error (for string and character conversion
  * specifiers) occurred.
  */
-function errno(this: print_context, error: Error, format: string, ...params: Array<any>): number {
+function errno(this: print_context, error: Error | NodeJS.ErrnoException, format: string, ...params: Array<any>): number {
     this.errno = error;
     this.stderr = stdout;
     this.format = format;
@@ -868,6 +982,7 @@ export {
     get_print_context,
     printf,
     print_format,
+    print_man,
     print_usage,
     sprintf
 };
