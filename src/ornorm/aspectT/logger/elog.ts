@@ -1,4 +1,4 @@
-import { EasyLogger } from '@ornorm/aspectT';
+import {EasyLog, EasyLogger} from '@ornorm/aspectT';
 
 const LOG_TAG: string = 'elog';
 
@@ -64,4 +64,4 @@ if (process.env.ELOG_COLOR_ENABLE) {
 }
 
 /* EasyLogger object */
-const  elog: EasyLogger = { ...EasyLogger };
+const  elog: EasyLog = { ...EasyLogger };

@@ -35,18 +35,10 @@
  */
 
 import {
-    ELOG_LVL_ASSERT,
-    ELOG_LVL_VERBOSE,
-    ELOG_LVL_ERROR,
-    ELOG_LVL_WARN,
-    ELOG_LVL_INFO,
-    ELOG_LVL_DEBUG,
-    ifdef,
-    ifndef,
-    getCfgInt,
-    getCfgString
+    eLogCfg,
+    get_print_context, getenv_int, getenv_string, ifdef, ifndef, print_format
 } from '@ornorm/aspectT';
-import {inspect, InspectOptions} from 'util';
+import {InspectOptions} from 'util';
 
 /**
  * Enum representing the different format indices for `EasyLogger`.
@@ -590,7 +582,7 @@ export interface printfOptions {
  */
 function elog(tag: string, ...args: Array<any>): void {
     const message: any = args[0];
-    const formattedMessage: string = printf(message, '');
+    const formattedMessage: string = print_format.call(get_print_context(), message, '');
     console.log(formattedMessage.length ? `${tag}: ${formattedMessage}` : tag);
 }
 
@@ -603,7 +595,7 @@ function elog(tag: string, ...args: Array<any>): void {
 function elog_assert(tag: string, ...args: Array<any>): void {
     const condition: boolean = args[0];
     const message: any = args[1];
-    const formattedMessage: string = printf(message, `${args[0]} has assert failed`);
+    const formattedMessage: string = print_format.call(get_print_context(), message, `${args[0]} has assert failed`);
     const optionalParams: Array<any> = args.slice(2);
     console.assert(condition, `${tag}: ${formattedMessage}`, ...optionalParams);
 }
@@ -617,7 +609,7 @@ function elog_assert(tag: string, ...args: Array<any>): void {
 function elog_error(tag: string, ...args: Array<any>): void {
     const error: Error = args[0];
     const message: any = args[1];
-    const formattedMessage: string = printf(message, `${error.message}`);
+    const formattedMessage: string = print_format.call(get_print_context(), message, `${error.message}`);
     const optionalParams: Array<any> = args.slice(2);
     console.error(`${tag}: ${formattedMessage}`, ...optionalParams);
 }
@@ -630,7 +622,7 @@ function elog_error(tag: string, ...args: Array<any>): void {
  */
 function elog_warn(tag: string, ...args: Array<any>): void {
     const message: any = args[0];
-    const formattedMessage: string = printf(message, 'Warning');
+    const formattedMessage: string = print_format.call(get_print_context(), message, 'Warning');
     const optionalParams: Array<any> = args.slice(1);
     console.warn(`${tag}: ${formattedMessage}`, ...optionalParams);
 }
@@ -643,7 +635,7 @@ function elog_warn(tag: string, ...args: Array<any>): void {
  */
 function elog_info(tag: string, ...args: Array<any>): void {
     const message: any = args[0];
-    const formattedMessage: string = printf(message, 'Info');
+    const formattedMessage: string = print_format.call(get_print_context(), message, 'Info');
     const optionalParams: Array<any> = args.slice(1);
     console.info(`${tag}: ${formattedMessage}`, ...optionalParams);
 }
@@ -656,7 +648,7 @@ function elog_info(tag: string, ...args: Array<any>): void {
  */
 function elog_debug(tag: string, ...args: Array<any>): void {
     const message: any = args[0];
-    const formattedMessage: string = printf(message, 'Debug');
+    const formattedMessage: string = print_format.call(get_print_context(), message, 'Debug');
     const optionalParams: Array<any> = args.slice(1);
     console.debug(`${tag}: ${formattedMessage}`, ...optionalParams);
 }
@@ -669,7 +661,7 @@ function elog_debug(tag: string, ...args: Array<any>): void {
  */
 function elog_verbose(tag: string, ...args: Array<any>): void {
     const message: any = args[0];
-    const formattedMessage: string = printf(message, 'Verbose');
+    const formattedMessage: string = print_format.call(get_print_context(), message, 'Verbose');
     const optionalParams: Array<any> = args.slice(1);
     console.log(`${tag}: ${formattedMessage}`, ...optionalParams);
 }
@@ -711,17 +703,17 @@ if (ifndef('ELOG_OUTPUT_ENABLE')) {
         ifdef('ELOG_FMT_USING_DIR') ||
         ifdef('ELOG_FMT_USING_LINE')
     ) {
-        const ELOG_OUTPUT_DIR: string = getCfgString('ELOG_FMT_USING_DIR', 'logs');
+        const ELOG_OUTPUT_DIR: string = getenv_string('ELOG_FMT_USING_DIR', 'logs');
 
         EasyLogger.elog_raw = (...args: [string, ...Array<any>]): void => {
             EasyLogger.elog_raw_output(...args);
         };
 
-        if (ifdef('ELOG_OUTPUT_LVL') && getCfgInt('ELOG_OUTPUT_LVL', ELOG_LVL_ASSERT) >= ELOG_LVL_ASSERT) {
+        if (ifdef('ELOG_OUTPUT_LVL') && getenv_int('ELOG_OUTPUT_LVL', eLogCfg.ELOG_LVL_ASSERT) >= eLogCfg.ELOG_LVL_ASSERT) {
             EasyLogger.elog_assert = (tag: string, ...args: [string, ...any[]]): void => {
                 const {functionName, lineNumber}: DebugPoint = elog_debug_point(EasyLogger.elog_assert!);
                 EasyLogger.elog_output(
-                    ELOG_LVL_ASSERT,
+                    eLogCfg.ELOG_LVL_ASSERT,
                     tag,
                     ELOG_OUTPUT_DIR,
                     functionName,
@@ -731,11 +723,11 @@ if (ifndef('ELOG_OUTPUT_ENABLE')) {
             };
         }
 
-        if (ifdef('ELOG_OUTPUT_LVL') && getCfgInt('ELOG_OUTPUT_LVL', ELOG_LVL_ERROR) >= ELOG_LVL_ERROR) {
+        if (ifdef('ELOG_OUTPUT_LVL') && getenv_int('ELOG_OUTPUT_LVL', eLogCfg.ELOG_LVL_ERROR) >= eLogCfg.ELOG_LVL_ERROR) {
             EasyLogger.elog_error = (tag: string, ...args: [string, ...Array<any>]): void => {
                 const {functionName, lineNumber}: DebugPoint = elog_debug_point(EasyLogger.elog_error!);
                 EasyLogger.elog_output(
-                    ELOG_LVL_ERROR, tag,
+                    eLogCfg.ELOG_LVL_ERROR, tag,
                     ELOG_OUTPUT_DIR,
                     functionName,
                     lineNumber,
@@ -744,11 +736,11 @@ if (ifndef('ELOG_OUTPUT_ENABLE')) {
             };
         }
 
-        if (ifdef('ELOG_OUTPUT_LVL') && getCfgInt('ELOG_OUTPUT_LVL', ELOG_LVL_WARN) >= ELOG_LVL_WARN) {
+        if (ifdef('ELOG_OUTPUT_LVL') && getenv_int('ELOG_OUTPUT_LVL', eLogCfg.ELOG_LVL_WARN) >= eLogCfg.ELOG_LVL_WARN) {
             EasyLogger.elog_warn = (tag: string, ...args: [string, ...Array<any>]): void => {
                 const {functionName, lineNumber}: DebugPoint = elog_debug_point(EasyLogger.elog_warn!);
                 EasyLogger.elog_output(
-                    ELOG_LVL_WARN, tag,
+                    eLogCfg.ELOG_LVL_WARN, tag,
                     ELOG_OUTPUT_DIR,
                     functionName,
                     lineNumber,
@@ -757,11 +749,11 @@ if (ifndef('ELOG_OUTPUT_ENABLE')) {
             };
         }
 
-        if (ifdef('ELOG_OUTPUT_LVL') && getCfgInt('ELOG_OUTPUT_LVL', ELOG_LVL_INFO) >= ELOG_LVL_INFO) {
+        if (ifdef('ELOG_OUTPUT_LVL') && getenv_int('ELOG_OUTPUT_LVL', eLogCfg.ELOG_LVL_INFO) >= eLogCfg.ELOG_LVL_INFO) {
             EasyLogger.elog_info = (tag: string, ...args: [string, ...Array<any>]): void => {
                 const {functionName, lineNumber}: DebugPoint = elog_debug_point(EasyLogger.elog_warn!);
                 EasyLogger.elog_output(
-                    ELOG_LVL_INFO, tag,
+                    eLogCfg.ELOG_LVL_INFO, tag,
                     ELOG_OUTPUT_DIR,
                     functionName,
                     lineNumber,
@@ -770,11 +762,11 @@ if (ifndef('ELOG_OUTPUT_ENABLE')) {
             };
         }
 
-        if (ifdef('ELOG_OUTPUT_LVL') && getCfgInt('ELOG_OUTPUT_LVL', ELOG_LVL_DEBUG) >= ELOG_LVL_DEBUG) {
+        if (ifdef('ELOG_OUTPUT_LVL') && getenv_int('ELOG_OUTPUT_LVL', eLogCfg.ELOG_LVL_DEBUG) >= eLogCfg.ELOG_LVL_DEBUG) {
             EasyLogger.elog_debug = (tag: string, ...args: [string, ...Array<any>]): void => {
                 const {functionName, lineNumber}: DebugPoint = elog_debug_point(EasyLogger.elog_debug!);
                 EasyLogger.elog_output(
-                    ELOG_LVL_DEBUG, tag,
+                    eLogCfg.ELOG_LVL_DEBUG, tag,
                     ELOG_OUTPUT_DIR,
                     functionName,
                     lineNumber,
@@ -783,11 +775,11 @@ if (ifndef('ELOG_OUTPUT_ENABLE')) {
             };
         }
 
-        if (ifdef('ELOG_OUTPUT_LVL') && getCfgInt('ELOG_OUTPUT_LVL', ELOG_LVL_VERBOSE) === ELOG_LVL_VERBOSE) {
+        if (ifdef('ELOG_OUTPUT_LVL') && getenv_int('ELOG_OUTPUT_LVL', eLogCfg.ELOG_LVL_VERBOSE) === eLogCfg.ELOG_LVL_VERBOSE) {
             EasyLogger.elog_verbose = (tag: string, ...args: [string, ...Array<any>]): void => {
                 const {functionName, lineNumber}: DebugPoint = elog_debug_point(EasyLogger.elog_verbose!);
                 EasyLogger.elog_output(
-                    ELOG_LVL_VERBOSE, tag,
+                    eLogCfg.ELOG_LVL_VERBOSE, tag,
                     ELOG_OUTPUT_DIR,
                     functionName,
                     lineNumber,

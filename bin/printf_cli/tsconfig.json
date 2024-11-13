@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "commonjs",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "../../",
+    "paths": {
+      "@ornorm": ["./bin/types/ornorm"],
+      "@ornorm/*": ["./bin/types/ornorm/*"],
+      "@ornorm/aspectT": ["./bin/types/ornorm/aspectT"],
+      "@ornorm/aspectT/*": ["./bin/types/ornorm/aspectT/*"]
+    },
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["./**/*"],
+  "exclude": ["node_modules", "**/*.spec.ts"]
+}

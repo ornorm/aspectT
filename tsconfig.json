@@ -5,6 +5,8 @@
     "lib": ["ES6", "DOM"],
     "outDir": "./dist",
     "rootDir": "./src",
+    "declaration": true,
+    "declarationDir": "./bin/types",
     "strict": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
@@ -21,5 +23,5 @@
     }
   },
   "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["config", "dist", "docs", "logs", "node_modules"]
+  "exclude": ["bin", "config", "dist", "docs", "logs", "node_modules"]
 }
