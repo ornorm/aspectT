@@ -43,9 +43,22 @@ export interface print_context {
      * @see Buffer
      */
     buffer?: string | Array<string> | Buffer;
-
+    /**
+     * The number of characters written so far.
+     *
+     * This property keeps track of the total number of characters that have been
+     * written to the output stream or buffer. It is used to ensure that the
+     * correct number of characters are counted and returned by the printf-like
+     * functions.
+     */
     char_count: number;
-
+    /**
+     * The current position of the cursor in the format string.
+     *
+     * This property keeps track of the current position of the cursor within the
+     * format string being processed. It is used to correctly parse and replace
+     * format specifiers in the format string.
+     */
     cursor_position: number;
     /**
      * The error number or exception.
@@ -69,9 +82,14 @@ export interface print_context {
      * The format string to use.
      */
     format?: string;
-
+    /**
+     * The current index of the parameter being processed.
+     *
+     * This property is used to keep track of the index of the parameter
+     * currently being processed in the format string. It is incremented
+     * as each parameter is processed.
+     */
     param_index: number;
-
     /**
      * The parameters to use in the format string.
      */
@@ -481,6 +499,32 @@ function error(
     }
 }
 
+function handleLengthModifier(length: string, value: any): any {
+    switch (length) {
+        case 'h':
+            // short
+            return Number(value) & 0xFFFF;
+        case 'hh':
+            // char
+            return Number(value) & 0xFF;
+        case 'l':
+        case 'll':
+        case 'j':
+        case 'I64':
+        case 'q':
+            // long, long long, intmax_t, 64-bit int
+            return BigInt(value);
+        case 'L':
+        case 'z':
+        case 't':
+        case 'I32':
+            // long double (treated as double in JS), size_t, ptrdiff_t, 32-bit int
+            return Number(value);
+        default:
+            return value;
+    }
+}
+
 /**
  * A standard library function that formats text and writes it to standard
  * output.
@@ -664,6 +708,16 @@ function print_format(this: print_context, format: string, ...params: Array<any>
     this.param_index = 0;
     this.char_count = 0;
     this.cursor_position = 0;
+    /* If POSIXLY_CORRECT is not set, then give a warning that there
+        are characters following the character constant and that GNU
+        printf is ignoring those characters.
+        If POSIXLY_CORRECT *is* set, then don't give the warning.  */
+    if (format.includes('%') && !this.posixly_correct) {
+        const remainingFormat: string = format.slice(format.indexOf('%') + 1);
+        if (remainingFormat.length > 0) {
+            error.call(this, 0, null, this.cfcc_msg || '', remainingFormat);
+        }
+    }
     const result: string = format.replace(/%(\d+\$)?([-+ 0'#]*)?(\d+)?(\.\d+)?([hlLzjtI32I64q])?([sdifxXocpeEgGaAn%])/g, (match: string, param: any, flags: any, width: any, precision: any, length: any, type: any) => {
         const index: number = param ? parseInt(param) - 1 : this.param_index++;
         let value: any = params[index];
@@ -671,31 +725,7 @@ function print_format(this: print_context, format: string, ...params: Array<any>
         if (converter) {
             // Handle length modifiers
             if (length) {
-                switch (length) {
-                    case 'h':
-                        // short
-                        value = Number(value) & 0xFFFF;
-                        break;
-                    case 'hh':
-                        // char
-                        value = Number(value) & 0xFF;
-                        break;
-                    case 'l':
-                    case 'll':
-                    case 'j':
-                    case 'I64':
-                    case 'q':
-                        // long, long long, intmax_t, 64-bit int
-                        value = BigInt(value);
-                        break;
-                    case 'L':
-                    case 'z':
-                    case 't':
-                    case 'I32':
-                        // long double (treated as double in JS), size_t, ptrdiff_t, 32-bit int
-                        value = Number(value);
-                        break;
-                }
+                value = handleLengthModifier(length, value);
             }
             const formattedValue: string = converter(value, flags, width ?
                     parseInt(width) : undefined,
@@ -714,6 +744,72 @@ function print_format(this: print_context, format: string, ...params: Array<any>
     });
     return result;
 }
+
+/**
+ * A standard library function that writes a string to the standard output
+ * stream.
+ *
+ * @param this - The context for the `printf` function.
+ * @param c - The string to write.
+ * @returns The number of characters written.
+ * @see print_context
+ */
+function put_char(this: print_context, c: string): number {
+    this.format = c;
+    if (this.stdout) {
+        return print_out(this);
+    }
+    if (this.buffer) {
+       return print_buffer(this);
+    }
+    if (this.stream) {
+        return print_stream(this);
+    }
+    return -1;
+}
+
+/**
+ * Output a single-character \ escape.
+ *
+ * @param this  - The context for the `printf` function.
+ * @param c - The character to escape.
+ * @returns The number of characters written.
+ * @see print_context
+ */
+function print_esc_char(this: print_context, c: string): number | never {
+    switch (c) {
+        case 'a':
+            /* Alert. */
+            return put_char.call(this, '\a');
+        case 'b':
+            /* Backspace. */
+            return put_char.call(this, '\b');
+        case 'c':
+            /* Cancel the rest of the output. */
+            return exit(EXIT_SUCCESS);
+        case 'e':
+            /* Escape. */
+            return put_char.call(this, '\x1B');
+        case 'f':
+            /* Form feed. */
+            return put_char.call(this, '\f');
+        case 'n':
+            /* New line. */
+            return put_char.call(this, '\n');
+        case 'r':
+            /* Carriage return. */
+            return put_char.call(this, '\r');
+        case 't':
+            /* Horizontal tab. */
+            return put_char.call(this, '\t');
+        case 'v':
+            /* Vertical tab. */
+            return put_char.call(this, '\v');
+        default:
+            return put_char.call(this, c);
+    }
+}
+
 /**
  * Writes the formatted output to the standard output stream.
  *
@@ -854,10 +950,10 @@ function sprintf(this: print_context, buffer: string | Array<string> | Buffer, f
 }
 
 /**
- * Writes the formatted output to a file specified in the context.
+ * Writes the formatted output to a `file` specified in the context.
  *
- * @param context - The context containing the file and format information.
- * @returns The number of characters written to the file, or -1 if no format
+ * @param context - The context containing the `file` and format information.
+ * @returns The number of characters written to the `file`, or -1 if no format
  * is provided.
  * @see print_context
  */
@@ -884,6 +980,25 @@ function print_file(context: print_context): number {
         context.params = [err.message];
         context.exit_status = 1;
         print_err(context);
+    }
+    return -1;
+}
+
+/**
+ * Writes the formatted output to a `stream` specified in the context.
+ *
+ * @param context - The context containing the `stream` and format information.
+ * @returns The number of characters written to the `stream`, or -1 if no format
+ * is provided.
+ * @see print_context
+ */
+function print_stream(context: print_context): number {
+    if (context.format) {
+        const result: string = print_format.call(context, context.format, ...(context.params || []));
+        if (context.stream) {
+            context.stream.write(result);
+            return result.length;
+        }
     }
     return -1;
 }
@@ -984,5 +1099,6 @@ export {
     print_format,
     print_man,
     print_usage,
+    put_char,
     sprintf
 };
