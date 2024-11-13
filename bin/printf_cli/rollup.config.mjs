@@ -1,5 +1,7 @@
 import typescript from 'rollup-plugin-typescript2';
 import { terser } from 'rollup-plugin-terser';
+import nodeResolve from '@rollup/plugin-node-resolve';
+import commonjs from '@rollup/plugin-commonjs';
 
 export default {
   input: 'bin/printf_cli/index.ts',
@@ -9,6 +11,8 @@ export default {
     sourcemap: true
   },
   plugins: [
+    nodeResolve(),
+    commonjs(),
     typescript({
       tsconfig: 'bin/printf_cli/tsconfig.json'
     }),
@@ -18,6 +22,7 @@ export default {
     'inquirer',
     'reflect-metadata',
     'shelljs',
-    'ts-morph'
+    'ts-morph',
+    '@ornorm/aspectT'
   ]
 };

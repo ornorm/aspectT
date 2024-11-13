@@ -12,10 +12,10 @@
     "emitDecoratorMetadata": true,
     "baseUrl": "../../",
     "paths": {
-      "@ornorm": ["./bin/types/ornorm"],
-      "@ornorm/*": ["./bin/types/ornorm/*"],
-      "@ornorm/aspectT": ["./bin/types/ornorm/aspectT"],
-      "@ornorm/aspectT/*": ["./bin/types/ornorm/aspectT/*"]
+      "@ornorm": ["./dist/types/ornorm"],
+      "@ornorm/*": ["./dist/types/ornorm/*"],
+      "@ornorm/aspectT": ["./dist/types/ornorm/aspectT"],
+      "@ornorm/aspectT/*": ["./dist/types/ornorm/aspectT/*"]
     },
     "outDir": "./dist/printf_cli",
     "rootDir": "."

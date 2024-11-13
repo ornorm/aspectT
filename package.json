@@ -5,7 +5,7 @@
   "description": "A seamless aspect-oriented extension to the Typescript™ programming language.Javascript platform compatible.Easy to learn and use.",
   "main": "dist/index.js",
   "bin": {
-    "printf": "bin/printf_cli/index.js"
+    "printf": "dist/printf_cli/index.js"
   },
   "scripts": {
     "build": "tsc && rollup -c",
@@ -13,10 +13,14 @@
     "build:all": "npm run build && npm run build:cli",
     "docs": "typedoc --out docs src",
     "lint": "eslint 'src/**/*.{ts,tsx}' 'test/**/*.{ts,tsx}'",
+    "printf": "printf",
     "release": "./bin/release/release.sh",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "watch": "tsc -w & rollup -c -w",
+    "watch:cli": "rollup -c bin/printf_cli/rollup.config.mjs -w",
+    "watch:all": "npm run watch & npm run watch:cli"
   },
   "keywords": [
     "AOP",
@@ -38,6 +42,8 @@
   "author": "Aimé Biendo",
   "license": "MIT",
   "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.1",
+    "@rollup/plugin-node-resolve": "^15.3.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.0",
     "@semantic-release/git": "^10.0.1",
