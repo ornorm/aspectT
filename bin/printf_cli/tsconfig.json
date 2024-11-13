@@ -1,11 +1,15 @@
 {
   "compilerOptions": {
     "target": "ES6",
-    "module": "commonjs",
+    "module": "es2020",
+    "lib": ["ES6", "DOM"],
     "strict": true,
     "esModuleInterop": true,
+    "moduleResolution": "node",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "baseUrl": "../../",
     "paths": {
       "@ornorm": ["./bin/types/ornorm"],
@@ -13,9 +17,9 @@
       "@ornorm/aspectT": ["./bin/types/ornorm/aspectT"],
       "@ornorm/aspectT/*": ["./bin/types/ornorm/aspectT/*"]
     },
-    "outDir": "./dist",
-    "rootDir": "./src"
+    "outDir": "./dist/printf_cli",
+    "rootDir": "."
   },
   "include": ["./**/*"],
-  "exclude": ["node_modules", "**/*.spec.ts"]
+  "exclude": ["src", "config", "dist", "docs", "logs", "node_modules"]
 }
