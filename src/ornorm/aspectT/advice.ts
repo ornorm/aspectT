@@ -86,7 +86,7 @@ export function createAdvice(
         kind: StructureKind.Method
     };
 }
-
+/*
 // Create the class with advice methods
 const adviceClass: ClassDeclarationStructure = {
     kind: StructureKind.Class,
@@ -119,3 +119,4 @@ sourceFile.addClass(adviceClass);
 project.save().then(() => {
     console.log('advice.ts has been created with various advice declarations including special forms');
 });
+*/

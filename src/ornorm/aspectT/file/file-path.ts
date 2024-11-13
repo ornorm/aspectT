@@ -31,7 +31,7 @@
  * questions.
  */
 
-import {FileVisitor} from '@ornorm/aspectT';
+import {FileVisitor} from './file-visitor';
 import {EncodingOption} from 'fs';
 
 /**

@@ -31,7 +31,7 @@
  * questions.
  */
 
-import {FileObject} from '@ornorm/aspectT';
+import {FileObject} from './file-object';
 
 /**
  * A filter for abstract path names.

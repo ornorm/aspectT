@@ -4,7 +4,7 @@ module.exports = {
     testMatch: ['**/tests/**/*.(spec|test).ts'],
     moduleFileExtensions: ['ts', 'js', 'json', 'node'],
     moduleNameMapper: {
-        '^@src/(.*)$': '<rootDir>/src/$1',
+        '^@ornorm/aspectT$': '<rootDir>/src/ornorm/aspectT',
     },
     collectCoverage: true,
     coverageDirectory: 'coverage',

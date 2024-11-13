@@ -31,7 +31,7 @@
  * questions.
  */
 
-import {FileStats} from '@ornorm/aspectT';
+import {FileStats} from './file-object';
 
 /**
  * The result type of a {@link FileVisitor}.

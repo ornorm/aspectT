@@ -9,7 +9,8 @@
  * @date 2023
  */
 
-import {FileObject, FilePath} from '@ornorm/aspectT';
+import {FileObject} from './file-object';
+import {FilePath} from './file-path';
 import {existsSync} from 'fs';
 import {dirname, join} from 'path';
 

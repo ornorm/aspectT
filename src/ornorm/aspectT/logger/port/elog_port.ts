@@ -1,6 +1,7 @@
-import { ElogErrCode } from 'src/ornorm/aspectT/logger';
+
 import { threadId } from 'worker_threads';
-import {hrtime} from 'process';
+import { hrtime } from 'process';
+import { ElogErrCode } from '../inc/index';
 /**
  * EasyLogger port initialize
  *

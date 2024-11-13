@@ -34,7 +34,7 @@
  * Created on: 2015-04-28
  */
 
-import {getenv_boolean, getenv_int, getenv_string} from '@ornorm/aspectT';
+import {getenv_boolean, getenv_int, getenv_string} from '../util/getenv';
 
 /*
     output log's level
@@ -94,12 +94,6 @@ export const ELOG_SW_PORT_VERSION: string = '0.0.1';
  * This interface emulate the 'context'.
  */
 export interface ElogCfg {
-    ELOG_LVL_ASSERT: number
-    ELOG_LVL_ERROR: number;
-    ELOG_LVL_WARN: number;
-    ELOG_LVL_INFO: number;
-    ELOG_LVL_DEBUG: number;
-    ELOG_LVL_VERBOSE: number;
     /**
      * enable log `output`.
      */
@@ -225,12 +219,6 @@ export interface ElogCfg {
  */
 function cfg(): ElogCfg {
     return {
-        ELOG_LVL_ASSERT,
-        ELOG_LVL_ERROR,
-        ELOG_LVL_WARN,
-        ELOG_LVL_INFO,
-        ELOG_LVL_DEBUG,
-        ELOG_LVL_VERBOSE,
         /*---------------------------------------------------------------------------*/
         ELOG_OUTPUT_ENABLE: getenv_boolean('ELOG_OUTPUT_ENABLE', false),
         ELOG_OUTPUT_LVL: getenv_int('ELOG_LVL_VERBOSE', ELOG_LVL_VERBOSE),

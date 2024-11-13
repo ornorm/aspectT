@@ -1,6 +1,4 @@
-import {EasyLog, EasyLogger} from '@ornorm/aspectT';
-
-const LOG_TAG: string = 'elog';
+import { EasyLog, EasyLogger } from '../index';
 
 if (!process.env.ELOG_OUTPUT_LVL) {
     throw new Error(`Please configure static output log level (in elog_cfg.h)`);
@@ -64,4 +62,4 @@ if (process.env.ELOG_COLOR_ENABLE) {
 }
 
 /* EasyLogger object */
-const  elog: EasyLog = { ...EasyLogger };
+const  elog: EasyLog  = { ...EasyLogger };

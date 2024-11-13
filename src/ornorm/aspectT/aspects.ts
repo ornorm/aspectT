@@ -640,7 +640,7 @@ export function createAspectClass(name: string, isPrivileged: boolean, extendsCl
 
     return aspectClass;
 }
-
+/*
 // Example usage
 const exampleClass: ClassDeclaration =
     sourceFile.addClass({
@@ -670,3 +670,4 @@ createAspectClass('ExampleAspectClass', true, 'SuperClass', ['Interface1', 'Inte
 project.save().then(() => {
     console.log('Aspects.ts has been updated with new functions and examples');
 });
+*/

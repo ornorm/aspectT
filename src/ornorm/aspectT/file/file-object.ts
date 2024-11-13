@@ -31,18 +31,8 @@
  * questions.
  */
 
-import {
-    Chunk,
-    ErrorCallback,
-    FileFilter,
-    FilePath,
-    FileReadableStream,
-    FileVisitor,
-    FileVisitResult,
-    FileWritableStream,
-    ReadFileOptions,
-    ReadResult
-} from '@ornorm/aspectT';
+
+import {FileVisitor, FileVisitResult} from '@ornorm/aspectT';
 import {Blob} from 'buffer';
 import {execSync} from 'child_process';
 import {EventEmitter} from 'events';
@@ -78,6 +68,9 @@ import {
 import {tmpdir} from 'os';
 import {basename, delimiter, dirname, isAbsolute, join, resolve, sep} from 'path';
 import {Readable, ReadableOptions, Writable, WritableOptions} from 'stream';
+import { FilePath } from './file-path';
+import {Chunk, FileReadableStream, FileWritableStream, ReadFileOptions, ReadResult} from './file-stream';
+import { FileFilter } from './file-filter';
 
 /**
  * A type definition for a function that handles file system watch events.

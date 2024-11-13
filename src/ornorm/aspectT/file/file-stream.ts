@@ -9,7 +9,7 @@
  * @date 2023
  */
 
-import {FileObject} from '@ornorm/aspectT';
+import {FileObject} from './file-object';
 import {close, open, read, write} from 'fs';
 import {Readable, ReadableOptions, Writable, WritableOptions} from 'stream';
 import {promisify} from 'util';

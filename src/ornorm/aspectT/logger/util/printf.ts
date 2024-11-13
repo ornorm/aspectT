@@ -1,4 +1,3 @@
-import {FileWritableStream, getenv_int} from '@ornorm/aspectT';
 import {statSync, writeFileSync, WriteStream} from 'fs';
 import {exit, stdout} from 'process';
 
@@ -211,31 +210,29 @@ function fputs(this: print_context, s: string): number {
  *
  * If zero, detailed manual information is displayed.
  */
-function print_man(status: number): void {
-    const context: print_context = get_print_context();
-    if (status !== EXIT_SUCCESS) {
-        emit_try_help.call(context);
-    } else {
-        printf.call(context, `%s — manual\n\n`, PROGRAM_NAME);
-        printf.call(context, `NAME\n\n`);
-        printf.call(context, `\tprintf, fprintf, sprintf\n`);
-        printf.call(context, `LIBRARY\n\n`);
-        printf.call(context, `\tAspectT library\n\n`);
-        printf.call(context, `SYNOPSIS\n\n`);
-        printf.call(context, `\timport { printf, fprintf, sprintf } from '@ornorm/aspectT';\n\n`);
-        printf.call(context, `\tfunction printf(this: print_context, format: string, ...params: Array<any>): number;\n`);
-        printf.call(context, `\tfunction fprintf(this: print_context, file: string | number | FileWritableStream, format: string, ...params: Array<any>): number;\n`);
-        printf.call(context, `\tfunction sprintf(this: print_context, buffer: string | Array<string> | Buffer, format: string, ...params: Array<any>): number;\n\n`);
-        fputs.call(context, `This program supports the following format specifiers:\n\n`);
-        conversion_specifiers.forEach((specifier: conversion_specifier) => {
-            printf.call(context, `Specifier: %s\n`, specifier.specifier);
-            printf.call(context, `Description: %s\n`, specifier.explanation);
-            printf.call(context, `Expected Argument Type: %s\n`, specifier.expectedArgumentType);
-            printf.call(context, `Length Modifier: %s\n\n`, specifier.lengthModifier);
-        });
-        emit_ancillary_info.call(context, PROGRAM_NAME);
+function print_man(this: print_context): number | never {
+    if (this.exit_status !== EXIT_SUCCESS) {
+        return emit_try_help.call(this);
     }
-    exit(status);
+    printf.call(this, `%s — manual\n\n`, PROGRAM_NAME);
+    printf.call(this, `NAME\n\n`);
+    printf.call(this, `\tprintf, fprintf, sprintf\n`);
+    printf.call(this, `LIBRARY\n\n`);
+    printf.call(this, `\tAspectT library\n\n`);
+    printf.call(this, `SYNOPSIS\n\n`);
+    printf.call(this, `\timport { printf, fprintf, sprintf } from '@ornorm/aspectT';\n\n`);
+    printf.call(this, `\tfunction printf(this: print_context, format: string, ...params: Array<any>): number;\n`);
+    printf.call(this, `\tfunction fprintf(this: print_context, file: string | number | FileWritableStream, format: string, ...params: Array<any>): number;\n`);
+    printf.call(this, `\tfunction sprintf(this: print_context, buffer: string | Array<string> | Buffer, format: string, ...params: Array<any>): number;\n\n`);
+    fputs.call(this, `This program supports the following format specifiers:\n\n`);
+    conversion_specifiers.forEach((specifier: conversion_specifier) => {
+        printf.call(this, `Specifier: %s\n`, specifier.specifier);
+        printf.call(this, `Description: %s\n`, specifier.explanation);
+        printf.call(this, `Expected Argument Type: %s\n`, specifier.expectedArgumentType);
+        printf.call(this, `Length Modifier: %s\n\n`, specifier.lengthModifier);
+    });
+    emit_ancillary_info.call(this, PROGRAM_NAME);
+    return exit(this.exit_status);
 }
 
 /**
@@ -1202,6 +1199,8 @@ function print_main(): number {
                 written = print_usage.call(context);
             } else if (context.argv[1] === '--version') {
                 written = version_etc.call(context);
+            } else if (context.argv[1] === '--man') {
+                written = print_man.call(context);
             }
             return written > -1 ? EXIT_SUCCESS : EXIT_FAILURE;
         }

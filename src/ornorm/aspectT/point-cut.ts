@@ -1,4 +1,4 @@
-import {
+    import {
     Project,
     StructureKind,
     Scope,
@@ -60,24 +60,25 @@ function createPointcut(
         kind: StructureKind.Method
     };
 }
+    /*
+    // Create the class with pointcut methods
+    const pointCutClass: ClassDeclarationStructure = {
+        kind: StructureKind.Class,
+        name: 'PointCuts',
+        isExported: true,
+        methods: [
+            createPointcut('pc', 'private', '', 'call(void Foo.m())'),
+            createPointcut('pc', 'package', 'int i', 'set(int Foo.x) && args(i)'),
+            createPointcut('pc', 'public', '', ''),
+            createPointcut('pc', 'abstract', 'Object o', '')
+        ]
+    };
 
-// Create the class with pointcut methods
-const pointCutClass: ClassDeclarationStructure = {
-    kind: StructureKind.Class,
-    name: 'PointCuts',
-    isExported: true,
-    methods: [
-        createPointcut('pc', 'private', '', 'call(void Foo.m())'),
-        createPointcut('pc', 'package', 'int i', 'set(int Foo.x) && args(i)'),
-        createPointcut('pc', 'public', '', ''),
-        createPointcut('pc', 'abstract', 'Object o', '')
-    ]
-};
+    // Add the class to the source file
+    sourceFile.addClass(pointCutClass);
 
-// Add the class to the source file
-sourceFile.addClass(pointCutClass);
-
-// Save the source file
-project.save().then(() => {
-    console.log('point-cut.ts has been updated with pointcut definitions');
-});
+    // Save the source file
+    project.save().then(() => {
+        console.log('point-cut.ts has been updated with pointcut definitions');
+    });
+    */
