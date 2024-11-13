@@ -37,6 +37,14 @@ const USAGE_BUILTIN_WARNING: string = `Usage builtin warning here`;
  */
 export interface print_context {
     /**
+     * The number of arguments passed to the program.
+     */
+    argc?: number;
+    /**
+     * The arguments passed to the program.
+     */
+    argv?: Array<string>;
+    /**
      * The buffer to store the formatted output.
      *
      * Can be a string, an array of strings, or a Buffer.
@@ -63,7 +71,7 @@ export interface print_context {
     /**
      * The error number or exception.
      */
-    errno?: Error | NodeJS.ErrnoException;
+    errno?: Error | NodeJS.ErrnoException | number;
     /**
      * Warning message for ignored characters.
      */
@@ -239,24 +247,22 @@ function print_man(status: number): void {
  *
  * If zero, detailed usage information is displayed.
  */
-function print_usage(status: number): void {
-    const context: print_context = get_print_context();
-    if (status !== EXIT_SUCCESS) {
-        emit_try_help.call(context);
-    } else {
-        printf.call(context, `Usage: %s FORMAT [ARGUMENT]...\n  or:  %s OPTION\n`, PROGRAM_NAME, PROGRAM_NAME);
-        fputs.call(context, `Print ARGUMENT(s) according to FORMAT, or execute according to OPTION:\n`);
-        fputs.call(context, HELP_OPTION_DESCRIPTION);
-        fputs.call(context, VERSION_OPTION_DESCRIPTION);
-        fputs.call(context, `FORMAT controls the output as in C printf. Interpreted sequences are:\n`);
-        fputs.call(context, `  \\\"      double quote\n  \\\\      backslash\n  \\a      alert (BEL)\n  \\b      backspace\n  \\c      produce no further output\n  \\e      escape\n  \\f      form feed\n  \\n      new line\n  \\r      carriage return\n  \\t      horizontal tab\n  \\v      vertical tab\n`);
-        fputs.call(context, `  \\NNN    byte with octal value NNN (1 to 3 digits)\n  \\xHH    byte with hexadecimal value HH (1 to 2 digits)\n  \\uHHHH  Unicode (ISO/IEC 10646) character with hex value HHHH (4 digits)\n  \\UHHHHHHHH  Unicode character with hex value HHHHHHHH (8 digits)\n`);
-        fputs.call(context, `  %%      a single %\n  %b      ARGUMENT as a string with '\\' escapes interpreted,\n          except that octal escapes should have a leading 0 like \\0NNN\n  %q      ARGUMENT is printed in a format that can be reused as shell input,\n          escaping non-printable characters with the POSIX $'' syntax\n`);
-        fputs.call(context, `and all C format specifications ending with one of diouxXfeEgGcs, with\nARGUMENTs converted to proper type first. Variable widths are handled.\n`);
-        printf.call(context, USAGE_BUILTIN_WARNING, PROGRAM_NAME);
-        emit_ancillary_info.call(context, PROGRAM_NAME);
+function print_usage(this: print_context): number | never {
+    if (this.exit_status !== EXIT_SUCCESS) {
+        return emit_try_help.call(this);
     }
-    exit(status);
+    printf.call(this, `Usage: %s FORMAT [ARGUMENT]...\n  or:  %s OPTION\n`, PROGRAM_NAME, PROGRAM_NAME);
+    fputs.call(this, `Print ARGUMENT(s) according to FORMAT, or execute according to OPTION:\n`);
+    fputs.call(this, HELP_OPTION_DESCRIPTION);
+    fputs.call(this, VERSION_OPTION_DESCRIPTION);
+    fputs.call(this, `FORMAT controls the output as in C printf. Interpreted sequences are:\n`);
+    fputs.call(this, `  \\\"      double quote\n  \\\\      backslash\n  \\a      alert (BEL)\n  \\b      backspace\n  \\c      produce no further output\n  \\e      escape\n  \\f      form feed\n  \\n      new line\n  \\r      carriage return\n  \\t      horizontal tab\n  \\v      vertical tab\n`);
+    fputs.call(this, `  \\NNN    byte with octal value NNN (1 to 3 digits)\n  \\xHH    byte with hexadecimal value HH (1 to 2 digits)\n  \\uHHHH  Unicode (ISO/IEC 10646) character with hex value HHHH (4 digits)\n  \\UHHHHHHHH  Unicode character with hex value HHHHHHHH (8 digits)\n`);
+    fputs.call(this, `  %%      a single %\n  %b      ARGUMENT as a string with '\\' escapes interpreted,\n          except that octal escapes should have a leading 0 like \\0NNN\n  %q      ARGUMENT is printed in a format that can be reused as shell input,\n          escaping non-printable characters with the POSIX $'' syntax\n`);
+    fputs.call(this, `and all C format specifications ending with one of diouxXfeEgGcs, with\nARGUMENTs converted to proper type first. Variable widths are handled.\n`);
+    printf.call(this, USAGE_BUILTIN_WARNING, PROGRAM_NAME);
+    emit_ancillary_info.call(this, PROGRAM_NAME);
+    return exit(this.exit_status);
 }
 
 /**
@@ -488,15 +494,16 @@ function pad_string(value: string, flags?: string, width?: number): string {
 function error(
     this: print_context,
     status: number,
-    err: Error | NodeJS.ErrnoException | null,
+    err: Error | NodeJS.ErrnoException | number | null,
     message: string,
     ...params: Array<any>
-): void {
-    const formattedMessage: string = print_format.call(this, err ? err.message : message, ...params);
+): number | never {
+    const formattedMessage: string = print_format.call(this, err instanceof Error ? err.message : typeof err === 'number' ? `Error code: ${err}` : message, ...params);
     this?.stderr?.write(`${formattedMessage}\n`);
     if (status !== 0) {
-        exit(status);
+        return exit(status);
     }
+    return formattedMessage.length;
 }
 
 function handleLengthModifier(length: string, value: any): any {
@@ -730,7 +737,7 @@ function print_format(this: print_context, format: string, ...params: Array<any>
             const formattedValue: string = converter(value, flags, width ?
                     parseInt(width) : undefined,
                 precision ? parseInt(precision.slice(1)) : undefined,
-               this.char_count
+                this.char_count
             );
             this.char_count += formattedValue.length;
             this.cursor_position += match.length;
@@ -760,7 +767,7 @@ function put_char(this: print_context, c: string): number {
         return print_out(this);
     }
     if (this.buffer) {
-       return print_buffer(this);
+        return print_buffer(this);
     }
     if (this.stream) {
         return print_stream(this);
@@ -966,7 +973,7 @@ function print_file(context: print_context): number {
     try {
         if (typeof context.file === 'string' || typeof context.file === 'number') {
             oldLength = typeof context.file === 'string' ? statSync(context.file).size : 0;
-            writeFileSync(context.file, result, { flag: 'a' });
+            writeFileSync(context.file, result, {flag: 'a'});
             return typeof context.file === 'string' ? statSync(context.file).size - oldLength : result.length;
         }
         if (context.file instanceof WriteStream) {
@@ -1083,12 +1090,140 @@ function print_err(context: print_context): number | never {
  * output error or an encoding error (for string and character conversion
  * specifiers) occurred.
  */
-function errno(this: print_context, error: Error | NodeJS.ErrnoException, format: string, ...params: Array<any>): number {
+function errno(this: print_context, error: Error | NodeJS.ErrnoException | number, format: string, ...params: Array<any>): number {
     this.errno = error;
     this.stderr = stdout;
     this.format = format;
     this.params = params;
     return print_err(this);
+}
+
+/**
+ * Initializes the main context for the `printf` function.
+ *
+ * This function sets up the context with the provided argument count and arguments.
+ * It also initializes the parameters and sets the exit status to `EXIT_SUCCESS`.
+ *
+ * @param this - The context for the `printf` function.
+ * @param argc - The number of arguments passed to the program.
+ * @param argv - The arguments passed to the program.
+ * @see print_context
+ */
+function initialize_main(this: print_context, argc: number, ...argv: Array<string>): void {
+    this.argc = argc;
+    this.argv = [...argv];
+    this.params = [...argv];
+    this.exit_status = EXIT_SUCCESS;
+}
+
+/**
+ * Sets the program name in the given context.
+ *
+ * @param this - The context for the `printf` function.
+ * @param programName - The name of the program to set.
+ * @see print_context
+ */
+function set_program_name(this: print_context, programName: string): void {
+    this.program_name = programName;
+}
+
+/**
+ * Displays the version information for the program.
+ *
+ * @param this - The context for the `printf` function.
+ * @see print_context
+ */
+function version_etc(this: print_context): number {
+    let written: number = printf.call(this, `%s version 1.0.0\n`, this.program_name);
+    if (written !== -1) {
+        written += printf.call(this, `Written by %s.\n`, AUTHORS.join(', '));
+    }
+    return written;
+}
+
+/**
+ * Print the text in FORMAT, using ARGV (with ARGC elements) for
+ * arguments to any '%' directives.
+ * Return the number of elements of ARGV used.
+ *
+ * @param this - The context for the `printf` function.
+ * @param format - The format string.
+ * @param argc - The number of arguments.
+ * @param argv - The arguments array.
+ * @returns The number of elements of ARGV used.
+ * @see print_context
+ */
+function print_formatted(this: print_context, format: string, argc: number, ...argv: Array<string>): number {
+    this.format = format;
+    this.params = argv.slice(0, argc);
+    const result: string = print_format.call(this, format, ...this.params);
+    if (this.buffer) {
+        if (typeof this.buffer === 'string') {
+            this.buffer += result;
+        } else if (Array.isArray(this.buffer)) {
+            this.buffer.push(result);
+        } else if (Buffer.isBuffer(this.buffer)) {
+            this.buffer = Buffer.concat([this.buffer, Buffer.from(result)]);
+        }
+    } else if (this.file) {
+        if (typeof this.file === 'string' || typeof this.file === 'number') {
+            writeFileSync(this.file, result, {flag: 'a'});
+        } else if (this.file instanceof WriteStream) {
+            this.file.write(result);
+        }
+    } else if (this.stream) {
+        this.stream.write(result);
+    } else if (this.stdout) {
+        this.stdout.write(result);
+    } else {
+        return -1;
+    }
+    return this.params.length;
+}
+
+/**
+ * Main function to execute the printf-like functionality.
+ *
+ * This function initializes the context, processes command-line arguments,
+ * and calls the appropriate functions to handle the formatting and output.
+ *
+ * @returns The exit status of the program.
+ * Returns EXIT_SUCCESS (0) if the program executes successfully, or
+ * EXIT_FAILURE (1) if there is an error.
+ */
+function print_main(): number {
+    const context: print_context = get_print_context();
+    initialize_main.call(context, process.argv.length, ...process.argv);
+    if (typeof context.argc === 'number' && Array.isArray(context.argv)) {
+        set_program_name.call(context, context.argv[1]);
+        let written: number = -1;
+        if (context.argc === 2) {
+            if (context.argv[1] === '--help') {
+                written = print_usage.call(context);
+            } else if (context.argv[1] === '--version') {
+                written = version_etc.call(context);
+            }
+            return written > -1 ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
+        if (context.argc > 1 && context.argv[1] === '--') {
+            context.argv = context.argv.slice(1);
+        }
+        if (context.argv.length <= 1) {
+            return error.call(context, EXIT_FAILURE, 0, 'missing operand');
+        }
+        const format: string = context.argv[1];
+        let remainingArgs: Array<string> = context.argv.slice(2);
+        let args_used: number;
+        do {
+            args_used = print_formatted.call(context, format, remainingArgs.length, ...remainingArgs);
+            remainingArgs = remainingArgs.slice(args_used);
+        } while (args_used > 0 && remainingArgs.length > 0);
+        if (remainingArgs.length > 0) {
+            return error.call(context, 0, 0, `warning: ignoring excess arguments, starting with %s`, `"${remainingArgs[0]}"`);
+        }
+        return context.exit_status || EXIT_FAILURE;
+    }
+    return error.call(context, EXIT_FAILURE, 0, 'missing program parameters');
 }
 
 export {
@@ -1097,6 +1232,8 @@ export {
     get_print_context,
     printf,
     print_format,
+    print_formatted,
+    print_main,
     print_man,
     print_usage,
     put_char,
